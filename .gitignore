@@ -1,0 +1,8 @@
+dist
+node_modules
+storybook-static
+.travel-demo
+.DS_Store
+*.local
+*.log
+.env.local

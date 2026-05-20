@@ -1,0 +1,334 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Avenir Next", "Segoe UI", sans-serif;
+
+  --color-app-bg: #eef2ee;
+  --color-app-surface: rgba(255, 255, 252, 0.96);
+  --color-app-surface-soft: #f6f8f3;
+  --color-app-ink: #1c2528;
+  --color-app-muted: #657174;
+  --color-app-line: rgba(28, 37, 40, 0.15);
+  --color-app-line-strong: rgba(36, 53, 63, 0.28);
+  --color-app-steel: #24353f;
+  --color-app-steel-soft: #e1eaeb;
+  --color-app-sage: #5f7c68;
+  --color-app-sage-soft: #dfeade;
+  --color-app-gold: #f3c969;
+  --color-app-coral: #c95f3d;
+  --color-app-coral-soft: #f8e2d8;
+  --color-app-field: #fbfcf8;
+  --color-app-focus: rgba(95, 124, 104, 0.28);
+}
+
+@layer base {
+  html {
+    min-height: 100dvh;
+    background: var(--color-app-bg);
+  }
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    color: var(--color-app-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background:
+      linear-gradient(135deg, rgba(243, 201, 105, 0.2), transparent 34%),
+      linear-gradient(315deg, rgba(36, 53, 63, 0.16), transparent 36%),
+      var(--color-app-bg);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  a[href],
+  summary,
+  [role='button']:not([aria-disabled='true']),
+  [draggable='true'] {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-app-line bg-app-surface p-4 shadow-sm sm:p-5;
+  }
+
+  .tab-bar {
+    @apply grid grid-cols-2 gap-2 rounded-lg border border-app-line bg-app-surface p-1 sm:grid-cols-5;
+  }
+
+  .tab-button {
+    @apply rounded-md px-3 py-2 text-sm font-semibold text-app-muted transition enabled:hover:cursor-pointer enabled:hover:bg-app-steel-soft enabled:hover:text-app-ink;
+  }
+
+  .tab-button-active {
+    @apply bg-app-steel text-white shadow-sm enabled:hover:bg-app-steel enabled:hover:text-white;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .quiet-button,
+  .icon-button {
+    @apply inline-flex min-h-10 items-center justify-center rounded-md font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus;
+  }
+
+  .primary-button {
+    @apply bg-app-steel px-4 text-white enabled:hover:cursor-pointer enabled:hover:bg-app-sage;
+  }
+
+  .secondary-button {
+    @apply h-10 border border-app-line-strong bg-app-sage-soft px-4 text-app-ink enabled:hover:cursor-pointer enabled:hover:bg-app-gold;
+  }
+
+  .quiet-button {
+    @apply h-10 px-3 text-sm text-app-coral enabled:hover:cursor-pointer enabled:hover:bg-app-coral-soft;
+  }
+
+  .icon-button {
+    @apply aspect-square w-10 border border-app-line-strong bg-app-steel text-xl leading-none text-white enabled:hover:cursor-pointer enabled:hover:bg-app-sage;
+  }
+
+  .remove-icon-button {
+    @apply inline-flex size-10 items-center justify-center rounded-md text-2xl font-semibold leading-none text-app-coral transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus enabled:hover:cursor-pointer enabled:hover:bg-app-coral-soft;
+  }
+
+  .section-heading {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .section-heading h2 {
+    @apply text-xl font-semibold text-app-ink;
+  }
+
+  .section-heading span {
+    @apply rounded-full bg-app-steel-soft px-3 py-1 text-sm font-semibold text-app-steel;
+  }
+
+  .subheading {
+    @apply mb-3 text-sm font-bold uppercase tracking-[0.14em] text-app-muted;
+  }
+
+  .list-row {
+    @apply grid cursor-pointer gap-1 rounded-md border border-transparent bg-app-surface-soft p-3 text-left transition hover:border-app-line-strong hover:bg-app-steel-soft;
+  }
+
+  .list-row-active {
+    @apply border-app-sage bg-app-sage-soft;
+  }
+
+  .list-row-active:hover {
+    @apply border-app-sage bg-app-sage-soft;
+  }
+
+  .form-grid {
+    @apply grid gap-4 md:grid-cols-2;
+  }
+
+  .form-grid.compact {
+    @apply gap-3;
+  }
+
+  .field {
+    @apply grid gap-1.5 text-sm font-semibold text-app-muted;
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .select-field {
+    @apply w-full rounded-md border border-app-line-strong bg-app-field px-3 py-2 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
+  }
+
+  .field textarea {
+    @apply resize-y;
+  }
+
+  .location-picker {
+    @apply relative;
+  }
+
+  .location-picker-menu {
+    @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-20 max-h-64 overflow-auto rounded-md border border-app-line-strong bg-app-surface p-1 shadow-lg;
+  }
+
+  .location-picker-option {
+    @apply flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition enabled:hover:cursor-pointer enabled:hover:bg-app-steel-soft;
+  }
+
+  .picker-option-content {
+    @apply grid gap-0.5;
+  }
+
+  .picker-option-content span {
+    @apply font-semibold text-app-ink;
+  }
+
+  .picker-option-content small {
+    @apply text-sm text-app-muted;
+  }
+
+  .location-picker-option-selected {
+    @apply opacity-65 enabled:hover:bg-app-steel-soft;
+  }
+
+  .selected-pill {
+    @apply shrink-0 rounded-full bg-app-steel-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-app-steel;
+  }
+
+  .picker-empty {
+    @apply px-3 py-2 text-sm font-semibold text-app-muted;
+  }
+
+  .inline-form {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-end;
+  }
+
+  .travel-leg {
+    @apply grid gap-3 rounded-lg border border-app-line bg-app-surface-soft p-4;
+  }
+
+  .travel-leg-header {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .travel-leg-header span {
+    @apply rounded-full bg-app-gold px-3 py-1 text-sm font-bold text-app-steel;
+  }
+
+  .trip-detail-fieldset {
+    @apply grid min-w-0 gap-6 border-0 p-0;
+  }
+
+  .trip-detail-fieldset:disabled input,
+  .trip-detail-fieldset:disabled select,
+  .trip-detail-fieldset:disabled textarea {
+    @apply cursor-not-allowed opacity-70;
+  }
+
+  .trip-detail-fieldset:disabled .check-row {
+    @apply cursor-not-allowed;
+  }
+
+  .route-return-toggle {
+    @apply grid grid-cols-2 gap-1 rounded-md border border-app-line-strong bg-app-surface p-1;
+  }
+
+  .route-toggle-button {
+    @apply min-h-10 rounded px-3 text-sm font-semibold text-app-muted transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus enabled:hover:cursor-pointer enabled:hover:bg-app-steel-soft enabled:hover:text-app-ink;
+  }
+
+  .route-toggle-button-active {
+    @apply bg-app-steel text-white shadow-sm enabled:hover:bg-app-steel enabled:hover:text-white;
+  }
+
+  .item-list {
+    @apply grid gap-2;
+  }
+
+  .packing-item-row {
+    @apply flex flex-wrap items-center gap-3 rounded-md border border-app-line bg-app-surface-soft p-3;
+  }
+
+  .packing-item-row-dragging {
+    @apply border-app-sage bg-app-sage-soft opacity-70;
+  }
+
+  .packing-item-row > span:first-child:not(.drag-handle) {
+    @apply flex-1 font-semibold;
+  }
+
+  .drag-handle {
+    @apply flex cursor-pointer items-center justify-center text-app-muted transition hover:text-app-ink active:cursor-grabbing;
+  }
+
+  .drag-handle-dots {
+    @apply grid grid-cols-2 gap-0.5;
+  }
+
+  .drag-handle-dots span {
+    @apply size-1 rounded-full bg-current;
+  }
+
+  .drag-handle + span {
+    @apply flex-1 font-semibold;
+  }
+
+  .packing-item-label {
+    @apply flex-1;
+  }
+
+  .check-row input {
+    @apply size-5 accent-app-sage hover:cursor-pointer;
+  }
+
+  .check-row {
+    @apply flex min-w-48 flex-1 cursor-pointer items-center gap-3 font-semibold;
+  }
+
+  .packing-item-name-input {
+    @apply min-h-12 min-w-0 flex-1 rounded-md border border-app-line-strong bg-app-field px-3 py-3 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
+  }
+
+  .source-pill {
+    @apply rounded-full bg-app-steel-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-app-steel;
+  }
+
+  .empty-state {
+    @apply rounded-md border border-dashed border-app-line-strong bg-app-surface-soft p-4 text-sm font-medium text-app-muted;
+  }
+
+  .sync-card {
+    @apply grid gap-4 rounded-lg border border-app-line bg-app-surface-soft p-4;
+    grid-template-rows: auto minmax(4.25rem, auto) minmax(5.25rem, auto) auto;
+  }
+
+  .sync-card-header {
+    @apply flex min-h-10 flex-wrap items-center justify-between gap-3;
+  }
+
+  .sync-card-header h2 {
+    @apply text-xl font-semibold text-app-ink;
+  }
+
+  .sync-card-body {
+    @apply grid content-start gap-3;
+  }
+
+  .sync-card-message {
+    @apply grid content-start gap-2;
+  }
+
+  .sync-card-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .sync-pill {
+    @apply rounded-full bg-app-steel-soft px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-app-steel;
+  }
+
+  .sync-pill-active {
+    @apply bg-app-sage-soft text-app-sage;
+  }
+}

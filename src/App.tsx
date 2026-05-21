@@ -57,6 +57,8 @@ const travelModeOptions: Array<{ value: TravelMode; label: string }> = [
 const activeTabStorageKey = 'travel-plans-active-tab';
 const noteHeightStoragePrefix = 'travel-plans-note-height:';
 const defaultActiveTab: ActiveTab = 'trips';
+const googleMapsEmbedApiKey =
+  import.meta.env.VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY?.trim() ?? '';
 
 function isActiveTab(value: string | null): value is ActiveTab {
   return tabs.some((tab) => tab.id === value);
@@ -459,8 +461,12 @@ type AddressAutocompleteSuggestion = {
 type RouteMapResult = {
   distanceMeters: number | null;
   durationMinutes: number | null;
-  mapImageUrl: string;
   mapsUrl: string;
+  travelMode: string;
+};
+type RouteMapEmbedProps = {
+  destination: string;
+  origin: string;
   travelMode: string;
 };
 
@@ -642,117 +648,47 @@ function AddressAutocompleteInput({
   );
 }
 
-function formatDistanceMeters(value: number | null): string {
-  if (value === null) {
-    return '';
+function createGoogleMapsEmbedDirectionsUrl({
+  destination,
+  origin,
+  travelMode
+}: RouteMapEmbedProps): string {
+  const embedUrl = new URL('https://www.google.com/maps/embed/v1/directions');
+
+  embedUrl.searchParams.set('key', googleMapsEmbedApiKey);
+  embedUrl.searchParams.set('origin', origin);
+  embedUrl.searchParams.set('destination', destination);
+  embedUrl.searchParams.set('units', 'metric');
+
+  if (travelMode === 'BICYCLE') {
+    embedUrl.searchParams.set('mode', 'bicycling');
+  } else if (travelMode === 'DRIVE') {
+    embedUrl.searchParams.set('mode', 'driving');
   }
 
-  const kilometers = value / 1000;
-
-  if (kilometers >= 10) {
-    return `${Math.round(kilometers).toLocaleString()} km`;
-  }
-
-  return `${kilometers.toFixed(1)} km`;
+  return embedUrl.toString();
 }
 
-async function getRouteMapImageError(response: Response): Promise<string> {
-  const contentType = response.headers.get('content-type') ?? '';
-
-  if (contentType.includes('application/json')) {
-    const payload = (await response.json()) as { error?: unknown };
-
-    return typeof payload.error === 'string' && payload.error
-      ? payload.error
-      : 'Could not load route map.';
-  }
-
-  const responseText = (await response.text()).trim();
-
-  return responseText || 'Could not load route map.';
-}
-
-function RouteMapImage({
-  alt,
-  mapImageUrl,
-  mapsUrl
-}: {
-  alt: string;
-  mapImageUrl: string;
-  mapsUrl: string;
-}): JSX.Element {
-  const [imageSrc, setImageSrc] = useState('');
-  const [imageError, setImageError] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let objectUrl = '';
-
-    setImageSrc('');
-    setImageError('');
-    setIsLoading(true);
-
-    void fetch(mapImageUrl, { signal: controller.signal })
-      .then(async (response) => {
-        const contentType = response.headers.get('content-type') ?? '';
-
-        if (!response.ok || !contentType.startsWith('image/')) {
-          throw new Error(await getRouteMapImageError(response));
-        }
-
-        objectUrl = URL.createObjectURL(await response.blob());
-        setImageSrc(objectUrl);
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted) {
-          console.error(error);
-          setImageError(
-            error instanceof Error ? error.message : 'Could not load route map.'
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [mapImageUrl]);
-
-  if (isLoading) {
-    return <div className="route-map-status">Loading route map...</div>;
-  }
-
-  if (imageError || !imageSrc) {
-    return (
-      <div className="route-map-status route-map-status-error" role="status">
-        {imageError || 'Could not load route map.'}
-      </div>
-    );
-  }
+function RouteMapEmbed({
+  destination,
+  origin,
+  travelMode
+}: RouteMapEmbedProps): JSX.Element {
+  const embedUrl = createGoogleMapsEmbedDirectionsUrl({
+    destination,
+    origin,
+    travelMode
+  });
 
   return (
-    <a
-      aria-label="Open route in Google Maps"
-      className="route-map-link"
-      href={mapsUrl}
-      rel="noreferrer"
-      target="_blank"
-    >
-      <img
-        alt={alt}
-        src={imageSrc}
-        onError={() => setImageError('Could not display route map.')}
-      />
-    </a>
+    <iframe
+      allowFullScreen
+      className="route-map-embed"
+      loading="lazy"
+      referrerPolicy="no-referrer-when-downgrade"
+      src={embedUrl}
+      title={`Route map from ${origin} to ${destination}`}
+    />
   );
 }
 
@@ -879,20 +815,20 @@ function RouteMapPreview({
     return <p className="route-preview-status">Calculating route...</p>;
   }
 
-  const distanceLabel = formatDistanceMeters(route.distanceMeters);
-
   return (
     <div className="route-preview">
-      {route.mapImageUrl ? (
-        <RouteMapImage
-          alt={`Route map from ${trimmedOrigin} to ${trimmedDestination}`}
-          mapImageUrl={route.mapImageUrl}
-          mapsUrl={route.mapsUrl}
+      {googleMapsEmbedApiKey ? (
+        <RouteMapEmbed
+          destination={trimmedDestination}
+          origin={trimmedOrigin}
+          travelMode={route.travelMode}
         />
-      ) : null}
+      ) : (
+        <div className="route-map-status" role="status">
+          Set VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY to render route maps.
+        </div>
+      )}
       <div className="route-preview-footer">
-        <span>{formatDuration(route.durationMinutes)}</span>
-        {distanceLabel ? <span>{distanceLabel}</span> : null}
         <a href={route.mapsUrl} rel="noreferrer" target="_blank">
           Open in Google Maps
         </a>
@@ -2103,35 +2039,21 @@ function App({
                     </label>
                   </div>
 
-                  <div className="form-grid">
-                    <label className="field">
-                      <span>Place to stay</span>
-                      <input
-                        value={selectedTrip.stayName}
-                        onChange={(event) =>
-                          updateSelectedTrip((trip) => ({
-                            ...trip,
-                            stayName: event.target.value
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Stay address</span>
-                      <AddressAutocompleteInput
-                        value={selectedTrip.stayAddress}
-                        homeAddress={appState.settings.homeAddress}
-                        placesAutocompleteEnabled={isServerBacked}
-                        onChange={(value) =>
-                          updateSelectedTrip((trip) => ({
-                            ...trip,
-                            stayAddress: value
-                          }))
-                        }
-                        placeholder="Address or place"
-                      />
-                    </label>
-                  </div>
+                  <label className="field">
+                    <span>Stay address</span>
+                    <AddressAutocompleteInput
+                      value={selectedTrip.stayAddress}
+                      homeAddress={appState.settings.homeAddress}
+                      placesAutocompleteEnabled={isServerBacked}
+                      onChange={(value) =>
+                        updateSelectedTrip((trip) => ({
+                          ...trip,
+                          stayAddress: value
+                        }))
+                      }
+                      placeholder="Address or place"
+                    />
+                  </label>
 
                   <label className="field">
                     <span>Trip notes</span>

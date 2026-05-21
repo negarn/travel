@@ -259,16 +259,12 @@
     @apply overflow-hidden rounded-md border border-app-line-strong bg-app-surface;
   }
 
-  .route-map-link {
-    @apply block bg-app-steel-soft transition hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus;
-  }
-
-  .route-map-link img {
-    @apply block aspect-[26/10] w-full object-cover;
+  .route-map-embed {
+    @apply block aspect-[4/3] min-h-[320px] w-full border-0 bg-app-steel-soft;
   }
 
   .route-map-status {
-    @apply flex aspect-[32/11] w-full items-center justify-center overflow-auto bg-app-steel-soft px-4 py-3 text-center text-sm font-semibold leading-6 text-app-muted;
+    @apply flex aspect-[4/3] min-h-[320px] w-full items-center justify-center overflow-auto bg-app-steel-soft px-4 py-3 text-center text-sm font-semibold leading-6 text-app-muted;
   }
 
   .route-map-status-error {
@@ -276,15 +272,11 @@
   }
 
   .route-preview-footer {
-    @apply flex flex-wrap items-center gap-3 px-3 py-2 text-sm font-semibold text-app-muted;
-  }
-
-  .route-preview-footer span:first-child {
-    @apply text-app-ink;
+    @apply flex items-center justify-end px-3 py-2 text-sm font-semibold;
   }
 
   .route-preview-footer a {
-    @apply ml-auto text-app-steel underline decoration-app-line-strong underline-offset-4 transition hover:text-app-sage;
+    @apply text-app-steel underline decoration-app-line-strong underline-offset-4 transition hover:text-app-sage;
   }
 
   .route-preview-status {

@@ -24,7 +24,7 @@ Start the development server:
 npm run dev
 ```
 
-The app runs on `http://127.0.0.1:5173` by default. The Vite server includes a
+The app runs on `http://127.0.0.1:5175` by default. The Vite server includes a
 local API for reading and writing the travel data file.
 
 To try the app with sample data:
@@ -110,15 +110,21 @@ configured:
 
 ```sh
 TRAVEL_GOOGLE_MAPS_API_KEY=...
+VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY=...
 ```
 
-Restart the dev server after changing the key. Because the app calls Google from
-the local Vite API server, use a key that is allowed to call the Places API,
-Routes API, and Maps Static API from a server-side web service.
+Restart the dev server after changing either key. Because address autocomplete
+and route calculations call Google from the local Vite API server, use a
+server-side key that is allowed to call Places API (New) and Routes API.
 
-The key stays on the local Vite API server. If it is not set, address fields and
-manual route details still work normally, and address fields show the saved home
-address as a quick option.
+Embedded route maps use a separate browser key that is allowed to call the Maps
+Embed API and is restricted to your local app origin, such as
+`http://127.0.0.1:5175/*`. If you use the demo server, also allow
+`http://127.0.0.1:5174/*`.
+
+The server-side key stays on the local Vite API server. If Google Maps keys are
+not set, address fields and manual route details still work normally, and address
+fields show the saved home address as a quick option.
 
 ## Scripts
 

@@ -36,7 +36,6 @@ const googlePlacesAutocompleteUrl =
   'https://places.googleapis.com/v1/places:autocomplete';
 const googleRoutesUrl =
   'https://routes.googleapis.com/directions/v2:computeRoutes';
-const googleStaticMapUrl = 'https://maps.googleapis.com/maps/api/staticmap';
 let cloudSyncManager: CloudSyncManager | null = null;
 let mutationQueue = Promise.resolve();
 
@@ -139,18 +138,6 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.statusCode = statusCode;
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
   response.end(`${JSON.stringify(payload, null, 2)}\n`);
-}
-
-function sendBuffer(
-  response: ServerResponse,
-  statusCode: number,
-  contentType: string,
-  payload: Buffer
-) {
-  response.statusCode = statusCode;
-  response.setHeader('Content-Type', contentType);
-  response.setHeader('Cache-Control', 'private, max-age=300');
-  response.end(payload);
 }
 
 async function readRequestBody(request: IncomingMessage) {
@@ -375,19 +362,6 @@ function getFirstRoute(value: unknown): Record<string, unknown> | null {
   return route && typeof route === 'object' ? route as Record<string, unknown> : null;
 }
 
-function getRoutePolyline(route: Record<string, unknown>): string {
-  const polyline = route.polyline;
-
-  if (!polyline || typeof polyline !== 'object') {
-    return '';
-  }
-
-  const encodedPolyline = (polyline as { encodedPolyline?: unknown })
-    .encodedPolyline;
-
-  return typeof encodedPolyline === 'string' ? encodedPolyline : '';
-}
-
 function createGoogleMapsDirectionsUrl({
   destination,
   origin,
@@ -411,24 +385,6 @@ function createGoogleMapsDirectionsUrl({
   return directionsUrl.toString();
 }
 
-function createRouteImagePath({
-  destination,
-  origin,
-  polyline
-}: {
-  destination: string;
-  origin: string;
-  polyline: string;
-}) {
-  const params = new URLSearchParams({
-    destination,
-    origin,
-    polyline
-  });
-
-  return `${travelApiPaths.mapsRouteImage}?${params.toString()}`;
-}
-
 function getGoogleRouteErrorMessage(value: unknown): string {
   if (!value || typeof value !== 'object' || !('error' in value)) {
     return 'Could not calculate this route.';
@@ -450,44 +406,6 @@ function getGoogleRouteErrorMessage(value: unknown): string {
   return errorParts.length > 0
     ? errorParts.join(' ')
     : 'Could not calculate this route.';
-}
-
-function getGoogleStaticMapErrorMessage(
-  responseBody: Buffer,
-  contentType: string | null
-): string {
-  const fallbackMessage = 'Could not load route map.';
-  const responseText = responseBody.toString('utf8').trim();
-
-  if (!responseText) {
-    return fallbackMessage;
-  }
-
-  if (contentType?.includes('application/json')) {
-    try {
-      const payload = JSON.parse(responseText) as unknown;
-
-      if (payload && typeof payload === 'object' && 'error' in payload) {
-        const error = (payload as { error?: unknown }).error;
-
-        if (typeof error === 'string' && error) {
-          return error;
-        }
-
-        if (error && typeof error === 'object' && 'message' in error) {
-          const message = (error as { message?: unknown }).message;
-
-          if (typeof message === 'string' && message) {
-            return message;
-          }
-        }
-      }
-    } catch {
-      return responseText;
-    }
-  }
-
-  return responseText;
 }
 
 async function handlePlacesAutocompleteRoute(
@@ -619,8 +537,7 @@ async function handleMapsRouteRoute(
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask':
-          'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline'
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters'
       },
       method: 'POST'
     });
@@ -643,17 +560,15 @@ async function handleMapsRouteRoute(
     const durationSeconds = parseGoogleDurationSeconds(route.duration);
     const distanceMeters =
       typeof route.distanceMeters === 'number' ? route.distanceMeters : null;
-    const polyline = getRoutePolyline(route);
 
     sendJson(response, 200, {
       isConfigured: true,
       route: {
         distanceMeters,
         durationMinutes:
-          durationSeconds === null ? null : Math.max(1, Math.round(durationSeconds / 60)),
-        mapImageUrl: polyline
-          ? createRouteImagePath({ destination, origin, polyline })
-          : '',
+          durationSeconds === null
+            ? null
+            : Math.max(1, Math.round(durationSeconds / 60)),
         mapsUrl: createGoogleMapsDirectionsUrl({
           destination,
           origin,
@@ -665,80 +580,6 @@ async function handleMapsRouteRoute(
   } catch (error) {
     sendJson(response, 502, {
       error: getErrorMessage(error, 'Could not reach Google Routes.')
-    });
-  }
-}
-
-async function handleMapsRouteImageRoute(
-  request: IncomingMessage,
-  response: ServerResponse
-) {
-  if (request.method !== 'GET') {
-    response.statusCode = 405;
-    response.end();
-    return;
-  }
-
-  const apiKey = getGoogleMapsApiKey();
-
-  if (!apiKey) {
-    sendJson(response, 404, { error: 'Google Maps is not configured.' });
-    return;
-  }
-
-  const requestUrl = new URL(
-    request.url ?? travelApiPaths.mapsRouteImage,
-    `http://${request.headers.host ?? 'localhost'}`
-  );
-  const polyline = requestUrl.searchParams.get('polyline') ?? '';
-  const origin = requestUrl.searchParams.get('origin') ?? '';
-  const destination = requestUrl.searchParams.get('destination') ?? '';
-
-  if (!polyline) {
-    sendJson(response, 400, { error: 'Missing route polyline.' });
-    return;
-  }
-
-  const staticMapUrl = new URL(googleStaticMapUrl);
-  staticMapUrl.searchParams.set('size', '640x220');
-  staticMapUrl.searchParams.set('scale', '2');
-  staticMapUrl.searchParams.set('maptype', 'roadmap');
-  staticMapUrl.searchParams.append(
-    'path',
-    `color:0x24353fff|weight:5|enc:${polyline}`
-  );
-
-  if (origin) {
-    staticMapUrl.searchParams.append('markers', `color:green|label:A|${origin}`);
-  }
-
-  if (destination) {
-    staticMapUrl.searchParams.append('markers', `color:red|label:B|${destination}`);
-  }
-
-  staticMapUrl.searchParams.set('key', apiKey);
-
-  try {
-    const mapResponse = await fetch(staticMapUrl);
-    const responseBody = Buffer.from(await mapResponse.arrayBuffer());
-    const contentType = mapResponse.headers.get('content-type');
-
-    if (!mapResponse.ok) {
-      sendJson(response, mapResponse.status, {
-        error: getGoogleStaticMapErrorMessage(responseBody, contentType)
-      });
-      return;
-    }
-
-    sendBuffer(
-      response,
-      200,
-      contentType ?? 'image/png',
-      responseBody
-    );
-  } catch (error) {
-    sendJson(response, 502, {
-      error: getErrorMessage(error, 'Could not reach Google Maps Static.')
     });
   }
 }
@@ -782,11 +623,6 @@ export function travelApi(): Plugin {
 
           if (requestPath === travelApiPaths.mapsRoute) {
             await handleMapsRouteRoute(request, response);
-            return;
-          }
-
-          if (requestPath === travelApiPaths.mapsRouteImage) {
-            await handleMapsRouteImageRoute(request, response);
             return;
           }
 

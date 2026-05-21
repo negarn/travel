@@ -1,9 +1,10 @@
 export type TravelReturnType = 'roundtrip' | 'different';
+export type TravelMode = 'DRIVE' | 'BICYCLE' | 'FLIGHT';
 
 export type TravelReturnLeg = {
   from: string;
   to: string;
-  mode: string;
+  mode: TravelMode;
   durationMinutes: number | null;
   notes: string;
 };
@@ -12,7 +13,7 @@ export type TravelLeg = {
   id: string;
   from: string;
   to: string;
-  mode: string;
+  mode: TravelMode;
   durationMinutes: number | null;
   notes: string;
   returnType: TravelReturnType;
@@ -57,6 +58,10 @@ export type TravelLocation = {
   travelLegs: TravelLeg[];
 };
 
+export type TravelSettings = {
+  homeAddress: string;
+};
+
 export type PackingListItem = {
   id: string;
   label: string;
@@ -72,6 +77,7 @@ export type TravelAppState = {
   trips: Trip[];
   locations: TravelLocation[];
   packingLists: PackingList[];
+  settings: TravelSettings;
   selectedTripId: string;
   selectedLocationId: string;
 };

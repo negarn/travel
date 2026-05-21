@@ -32,6 +32,11 @@ type MiddlewareStack = {
 const LOOPBACK_HOST_NAMES = new Set(['127.0.0.1', '::1', 'localhost']);
 const MAX_JSON_REQUEST_BODY_BYTES = 512 * 1024;
 const defaultTravelDataRootDir = resolve(homedir(), '.travel');
+const googlePlacesAutocompleteUrl =
+  'https://places.googleapis.com/v1/places:autocomplete';
+const googleRoutesUrl =
+  'https://routes.googleapis.com/directions/v2:computeRoutes';
+const googleStaticMapUrl = 'https://maps.googleapis.com/maps/api/staticmap';
 let cloudSyncManager: CloudSyncManager | null = null;
 let mutationQueue = Promise.resolve();
 
@@ -44,6 +49,10 @@ function getTravelDataRootDir() {
 
 function getTravelDataFilePath() {
   return resolve(getTravelDataRootDir(), 'travel-data.json');
+}
+
+function getGoogleMapsApiKey() {
+  return process.env.TRAVEL_GOOGLE_MAPS_API_KEY ?? null;
 }
 
 function getRequestHostName(request: IncomingMessage) {
@@ -130,6 +139,18 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.statusCode = statusCode;
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
   response.end(`${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function sendBuffer(
+  response: ServerResponse,
+  statusCode: number,
+  contentType: string,
+  payload: Buffer
+) {
+  response.statusCode = statusCode;
+  response.setHeader('Content-Type', contentType);
+  response.setHeader('Cache-Control', 'private, max-age=300');
+  response.end(payload);
 }
 
 async function readRequestBody(request: IncomingMessage) {
@@ -224,6 +245,504 @@ async function handleTravelDataRoute(
   response.end();
 }
 
+function normalizeAutocompleteSuggestions(value: unknown) {
+  if (!value || typeof value !== 'object' || !('suggestions' in value)) {
+    return [];
+  }
+
+  const suggestions = (value as { suggestions?: unknown }).suggestions;
+
+  if (!Array.isArray(suggestions)) {
+    return [];
+  }
+
+  return suggestions.flatMap((suggestion) => {
+    if (
+      !suggestion ||
+      typeof suggestion !== 'object' ||
+      !('placePrediction' in suggestion)
+    ) {
+      return [];
+    }
+
+    const placePrediction = (suggestion as { placePrediction?: unknown })
+      .placePrediction;
+
+    if (!placePrediction || typeof placePrediction !== 'object') {
+      return [];
+    }
+
+    const placeId = (placePrediction as { placeId?: unknown }).placeId;
+    const text = (placePrediction as { text?: { text?: unknown } }).text?.text;
+
+    if (typeof placeId !== 'string' || typeof text !== 'string' || !text) {
+      return [];
+    }
+
+    return [
+      {
+        id: placeId,
+        label: text
+      }
+    ];
+  });
+}
+
+function getGooglePlacesErrorMessage(value: unknown): string {
+  if (!value || typeof value !== 'object' || !('error' in value)) {
+    return 'Could not load address suggestions.';
+  }
+
+  const error = (value as { error?: unknown }).error;
+
+  if (!error || typeof error !== 'object') {
+    return 'Could not load address suggestions.';
+  }
+
+  const message = (error as { message?: unknown }).message;
+  const status = (error as { status?: unknown }).status;
+  const errorParts = [
+    typeof message === 'string' ? message : '',
+    typeof status === 'string' ? `(${status})` : ''
+  ].filter(Boolean);
+
+  return errorParts.length > 0
+    ? errorParts.join(' ')
+    : 'Could not load address suggestions.';
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  return error instanceof Error && error.message ? error.message : fallbackMessage;
+}
+
+function getRequestStringValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getRouteTravelMode(mode: string): string | null {
+  const normalizedMode = mode.trim().toLocaleUpperCase();
+
+  if (!normalizedMode) {
+    return 'DRIVE';
+  }
+
+  return ['DRIVE', 'BICYCLE'].includes(normalizedMode)
+    ? normalizedMode
+    : null;
+}
+
+function getMapsUrlTravelMode(routeTravelMode: string): string | null {
+  if (routeTravelMode === 'BICYCLE') {
+    return 'bicycling';
+  }
+
+  if (routeTravelMode === 'DRIVE') {
+    return 'driving';
+  }
+
+  return null;
+}
+
+function parseGoogleDurationSeconds(value: unknown): number | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const match = /^(\d+(?:\.\d+)?)s$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const seconds = Number(match[1]);
+
+  return Number.isFinite(seconds) ? seconds : null;
+}
+
+function getFirstRoute(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || !('routes' in value)) {
+    return null;
+  }
+
+  const routes = (value as { routes?: unknown }).routes;
+
+  if (!Array.isArray(routes) || routes.length === 0) {
+    return null;
+  }
+
+  const route = routes[0];
+
+  return route && typeof route === 'object' ? route as Record<string, unknown> : null;
+}
+
+function getRoutePolyline(route: Record<string, unknown>): string {
+  const polyline = route.polyline;
+
+  if (!polyline || typeof polyline !== 'object') {
+    return '';
+  }
+
+  const encodedPolyline = (polyline as { encodedPolyline?: unknown })
+    .encodedPolyline;
+
+  return typeof encodedPolyline === 'string' ? encodedPolyline : '';
+}
+
+function createGoogleMapsDirectionsUrl({
+  destination,
+  origin,
+  travelMode
+}: {
+  destination: string;
+  origin: string;
+  travelMode: string;
+}) {
+  const directionsUrl = new URL('https://www.google.com/maps/dir/');
+  const mapsUrlTravelMode = getMapsUrlTravelMode(travelMode);
+
+  directionsUrl.searchParams.set('api', '1');
+  directionsUrl.searchParams.set('origin', origin);
+  directionsUrl.searchParams.set('destination', destination);
+
+  if (mapsUrlTravelMode) {
+    directionsUrl.searchParams.set('travelmode', mapsUrlTravelMode);
+  }
+
+  return directionsUrl.toString();
+}
+
+function createRouteImagePath({
+  destination,
+  origin,
+  polyline
+}: {
+  destination: string;
+  origin: string;
+  polyline: string;
+}) {
+  const params = new URLSearchParams({
+    destination,
+    origin,
+    polyline
+  });
+
+  return `${travelApiPaths.mapsRouteImage}?${params.toString()}`;
+}
+
+function getGoogleRouteErrorMessage(value: unknown): string {
+  if (!value || typeof value !== 'object' || !('error' in value)) {
+    return 'Could not calculate this route.';
+  }
+
+  const error = (value as { error?: unknown }).error;
+
+  if (!error || typeof error !== 'object') {
+    return 'Could not calculate this route.';
+  }
+
+  const message = (error as { message?: unknown }).message;
+  const status = (error as { status?: unknown }).status;
+  const errorParts = [
+    typeof message === 'string' ? message : '',
+    typeof status === 'string' ? `(${status})` : ''
+  ].filter(Boolean);
+
+  return errorParts.length > 0
+    ? errorParts.join(' ')
+    : 'Could not calculate this route.';
+}
+
+function getGoogleStaticMapErrorMessage(
+  responseBody: Buffer,
+  contentType: string | null
+): string {
+  const fallbackMessage = 'Could not load route map.';
+  const responseText = responseBody.toString('utf8').trim();
+
+  if (!responseText) {
+    return fallbackMessage;
+  }
+
+  if (contentType?.includes('application/json')) {
+    try {
+      const payload = JSON.parse(responseText) as unknown;
+
+      if (payload && typeof payload === 'object' && 'error' in payload) {
+        const error = (payload as { error?: unknown }).error;
+
+        if (typeof error === 'string' && error) {
+          return error;
+        }
+
+        if (error && typeof error === 'object' && 'message' in error) {
+          const message = (error as { message?: unknown }).message;
+
+          if (typeof message === 'string' && message) {
+            return message;
+          }
+        }
+      }
+    } catch {
+      return responseText;
+    }
+  }
+
+  return responseText;
+}
+
+async function handlePlacesAutocompleteRoute(
+  request: IncomingMessage,
+  response: ServerResponse
+) {
+  if (request.method !== 'POST') {
+    response.statusCode = 405;
+    response.end();
+    return;
+  }
+
+  const apiKey = getGoogleMapsApiKey();
+  const requestBody = await readRequestBody(request);
+  const input =
+    requestBody && typeof requestBody === 'object' && 'input' in requestBody
+      ? String((requestBody as { input?: unknown }).input ?? '').trim()
+      : '';
+  const sessionToken =
+    requestBody && typeof requestBody === 'object' && 'sessionToken' in requestBody
+      ? String((requestBody as { sessionToken?: unknown }).sessionToken ?? '')
+      : '';
+
+  if (!input || input.length < 3) {
+    sendJson(response, 200, { isConfigured: Boolean(apiKey), suggestions: [] });
+    return;
+  }
+
+  if (!apiKey) {
+    sendJson(response, 200, { isConfigured: false, suggestions: [] });
+    return;
+  }
+
+  try {
+    const placesResponse = await fetch(googlePlacesAutocompleteUrl, {
+      body: JSON.stringify({
+        input,
+        ...(sessionToken ? { sessionToken } : {})
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask':
+          'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text'
+      },
+      method: 'POST'
+    });
+
+    const responseBody = (await placesResponse.json()) as unknown;
+
+    if (!placesResponse.ok) {
+      sendJson(response, placesResponse.status, {
+        error: getGooglePlacesErrorMessage(responseBody)
+      });
+      return;
+    }
+
+    sendJson(response, 200, {
+      isConfigured: true,
+      suggestions: normalizeAutocompleteSuggestions(responseBody)
+    });
+  } catch (error) {
+    sendJson(response, 502, {
+      error: getErrorMessage(error, 'Could not reach Google Places.')
+    });
+  }
+}
+
+async function handleMapsRouteRoute(
+  request: IncomingMessage,
+  response: ServerResponse
+) {
+  if (request.method !== 'POST') {
+    response.statusCode = 405;
+    response.end();
+    return;
+  }
+
+  const apiKey = getGoogleMapsApiKey();
+  const requestBody = await readRequestBody(request);
+  const origin =
+    requestBody && typeof requestBody === 'object' && 'origin' in requestBody
+      ? getRequestStringValue((requestBody as { origin?: unknown }).origin)
+      : '';
+  const destination =
+    requestBody && typeof requestBody === 'object' && 'destination' in requestBody
+      ? getRequestStringValue(
+          (requestBody as { destination?: unknown }).destination
+        )
+      : '';
+  const mode =
+    requestBody && typeof requestBody === 'object' && 'mode' in requestBody
+      ? getRequestStringValue((requestBody as { mode?: unknown }).mode)
+      : '';
+  const travelMode = getRouteTravelMode(mode);
+
+  if (!origin || !destination) {
+    sendJson(response, 200, {
+      isConfigured: Boolean(apiKey),
+      route: null
+    });
+    return;
+  }
+
+  if (!apiKey) {
+    sendJson(response, 200, {
+      isConfigured: false,
+      route: null
+    });
+    return;
+  }
+
+  if (!travelMode) {
+    sendJson(response, 200, {
+      isConfigured: true,
+      route: null,
+      error: 'Route maps support drive and bicycle modes.'
+    });
+    return;
+  }
+
+  try {
+    const routesResponse = await fetch(googleRoutesUrl, {
+      body: JSON.stringify({
+        destination: { address: destination },
+        origin: { address: origin },
+        travelMode
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask':
+          'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline'
+      },
+      method: 'POST'
+    });
+    const responseBody = (await routesResponse.json()) as unknown;
+
+    if (!routesResponse.ok) {
+      sendJson(response, routesResponse.status, {
+        error: getGoogleRouteErrorMessage(responseBody)
+      });
+      return;
+    }
+
+    const route = getFirstRoute(responseBody);
+
+    if (!route) {
+      sendJson(response, 404, { error: 'No route was found.' });
+      return;
+    }
+
+    const durationSeconds = parseGoogleDurationSeconds(route.duration);
+    const distanceMeters =
+      typeof route.distanceMeters === 'number' ? route.distanceMeters : null;
+    const polyline = getRoutePolyline(route);
+
+    sendJson(response, 200, {
+      isConfigured: true,
+      route: {
+        distanceMeters,
+        durationMinutes:
+          durationSeconds === null ? null : Math.max(1, Math.round(durationSeconds / 60)),
+        mapImageUrl: polyline
+          ? createRouteImagePath({ destination, origin, polyline })
+          : '',
+        mapsUrl: createGoogleMapsDirectionsUrl({
+          destination,
+          origin,
+          travelMode
+        }),
+        travelMode
+      }
+    });
+  } catch (error) {
+    sendJson(response, 502, {
+      error: getErrorMessage(error, 'Could not reach Google Routes.')
+    });
+  }
+}
+
+async function handleMapsRouteImageRoute(
+  request: IncomingMessage,
+  response: ServerResponse
+) {
+  if (request.method !== 'GET') {
+    response.statusCode = 405;
+    response.end();
+    return;
+  }
+
+  const apiKey = getGoogleMapsApiKey();
+
+  if (!apiKey) {
+    sendJson(response, 404, { error: 'Google Maps is not configured.' });
+    return;
+  }
+
+  const requestUrl = new URL(
+    request.url ?? travelApiPaths.mapsRouteImage,
+    `http://${request.headers.host ?? 'localhost'}`
+  );
+  const polyline = requestUrl.searchParams.get('polyline') ?? '';
+  const origin = requestUrl.searchParams.get('origin') ?? '';
+  const destination = requestUrl.searchParams.get('destination') ?? '';
+
+  if (!polyline) {
+    sendJson(response, 400, { error: 'Missing route polyline.' });
+    return;
+  }
+
+  const staticMapUrl = new URL(googleStaticMapUrl);
+  staticMapUrl.searchParams.set('size', '640x220');
+  staticMapUrl.searchParams.set('scale', '2');
+  staticMapUrl.searchParams.set('maptype', 'roadmap');
+  staticMapUrl.searchParams.append(
+    'path',
+    `color:0x24353fff|weight:5|enc:${polyline}`
+  );
+
+  if (origin) {
+    staticMapUrl.searchParams.append('markers', `color:green|label:A|${origin}`);
+  }
+
+  if (destination) {
+    staticMapUrl.searchParams.append('markers', `color:red|label:B|${destination}`);
+  }
+
+  staticMapUrl.searchParams.set('key', apiKey);
+
+  try {
+    const mapResponse = await fetch(staticMapUrl);
+    const responseBody = Buffer.from(await mapResponse.arrayBuffer());
+    const contentType = mapResponse.headers.get('content-type');
+
+    if (!mapResponse.ok) {
+      sendJson(response, mapResponse.status, {
+        error: getGoogleStaticMapErrorMessage(responseBody, contentType)
+      });
+      return;
+    }
+
+    sendBuffer(
+      response,
+      200,
+      contentType ?? 'image/png',
+      responseBody
+    );
+  } catch (error) {
+    sendJson(response, 502, {
+      error: getErrorMessage(error, 'Could not reach Google Maps Static.')
+    });
+  }
+}
+
 cloudSyncManager = createCloudSyncManager({
   applySnapshot: async (snapshot) => {
     await writeTravelData(snapshot);
@@ -258,6 +777,21 @@ export function travelApi(): Plugin {
           }
 
           if (await cloudSyncManager?.handleRequest(request, response)) {
+            return;
+          }
+
+          if (requestPath === travelApiPaths.mapsRoute) {
+            await handleMapsRouteRoute(request, response);
+            return;
+          }
+
+          if (requestPath === travelApiPaths.mapsRouteImage) {
+            await handleMapsRouteImageRoute(request, response);
+            return;
+          }
+
+          if (requestPath === travelApiPaths.placesAutocomplete) {
+            await handlePlacesAutocompleteRoute(request, response);
             return;
           }
 

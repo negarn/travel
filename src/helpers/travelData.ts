@@ -4,8 +4,10 @@ import type {
   TravelAppState,
   TravelLeg,
   TravelLocation,
+  TravelMode,
   TravelReturnLeg,
   TravelReturnType,
+  TravelSettings,
   Trip,
   TripChecklistItem,
   TripPackingItem,
@@ -15,6 +17,9 @@ import type {
 export const emptyTravelAppState: TravelAppState = {
   selectedTripId: '',
   selectedLocationId: '',
+  settings: {
+    homeAddress: ''
+  },
   trips: [],
   locations: [],
   packingLists: []
@@ -67,12 +72,20 @@ function normalizeTravelReturnType(value: unknown): TravelReturnType {
   return value === 'different' ? 'different' : 'roundtrip';
 }
 
+export function normalizeTravelMode(value: unknown): TravelMode {
+  const normalizedMode = normalizeString(value).toLocaleUpperCase();
+
+  return ['DRIVE', 'BICYCLE', 'FLIGHT'].includes(normalizedMode)
+    ? (normalizedMode as TravelMode)
+    : 'DRIVE';
+}
+
 function normalizeTravelReturnLeg(value: unknown): TravelReturnLeg {
   if (!isRecordLike(value)) {
     return {
       from: '',
       to: '',
-      mode: '',
+      mode: 'DRIVE',
       durationMinutes: null,
       notes: ''
     };
@@ -81,7 +94,7 @@ function normalizeTravelReturnLeg(value: unknown): TravelReturnLeg {
   return {
     from: normalizeString(value.from),
     to: normalizeString(value.to),
-    mode: normalizeString(value.mode),
+    mode: normalizeTravelMode(value.mode),
     durationMinutes: normalizeNumber(value.durationMinutes),
     notes: normalizeString(value.notes)
   };
@@ -102,7 +115,7 @@ function normalizeTravelLeg(value: unknown): TravelLeg | null {
     id,
     from: normalizeString(value.from),
     to: normalizeString(value.to),
-    mode: normalizeString(value.mode),
+    mode: normalizeTravelMode(value.mode),
     durationMinutes: normalizeNumber(value.durationMinutes),
     notes: normalizeString(value.notes),
     returnType: normalizeTravelReturnType(value.returnType),
@@ -227,6 +240,16 @@ function normalizeTravelLocation(value: unknown): TravelLocation | null {
   };
 }
 
+function normalizeTravelSettings(value: unknown): TravelSettings {
+  if (!isRecordLike(value)) {
+    return emptyTravelAppState.settings;
+  }
+
+  return {
+    homeAddress: normalizeString(value.homeAddress)
+  };
+}
+
 function normalizePackingListItem(value: unknown): PackingListItem | null {
   if (!isRecordLike(value)) {
     return null;
@@ -268,6 +291,7 @@ export function normalizeTravelAppState(value: unknown): TravelAppState {
   const trips = normalizeArray(value.trips, normalizeTrip);
   const locations = normalizeArray(value.locations, normalizeTravelLocation);
   const packingLists = normalizeArray(value.packingLists, normalizePackingList);
+  const settings = normalizeTravelSettings(value.settings);
   const selectedTripId = normalizeString(value.selectedTripId);
   const selectedLocationId = normalizeString(value.selectedLocationId);
 
@@ -275,6 +299,7 @@ export function normalizeTravelAppState(value: unknown): TravelAppState {
     trips,
     locations,
     packingLists,
+    settings,
     selectedTripId: selectExistingId(trips, selectedTripId),
     selectedLocationId: selectExistingId(locations, selectedLocationId)
   };

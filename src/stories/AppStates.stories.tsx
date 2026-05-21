@@ -14,6 +14,9 @@ function AppStoryHarness({
 const emptyTravelState: TravelAppState = {
   selectedTripId: '',
   selectedLocationId: '',
+  settings: {
+    homeAddress: ''
+  },
   trips: [],
   locations: [],
   packingLists: []

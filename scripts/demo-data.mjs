@@ -3,6 +3,9 @@ export const demoDataDirName = '.travel-demo';
 export const demoTravelData = {
   selectedTripId: 'trip-montreal',
   selectedLocationId: 'location-montreal',
+  settings: {
+    homeAddress: 'Toronto, ON'
+  },
   trips: [
     {
       id: 'trip-montreal',
@@ -17,14 +20,14 @@ export const demoTravelData = {
           id: 'leg-train',
           from: 'Toronto Union',
           to: 'Montreal Central',
-          mode: 'Train',
+          mode: 'DRIVE',
           durationMinutes: 315,
           notes: 'Book seats near the quiet car if available.',
           returnType: 'roundtrip',
           returnLeg: {
             from: '',
             to: '',
-            mode: '',
+            mode: 'DRIVE',
             durationMinutes: null,
             notes: ''
           }
@@ -47,14 +50,14 @@ export const demoTravelData = {
           id: 'leg-train',
           from: 'Toronto Union',
           to: 'Montreal Central',
-          mode: 'Train',
+          mode: 'DRIVE',
           durationMinutes: 315,
           notes: 'Book seats near the quiet car if available.',
           returnType: 'roundtrip',
           returnLeg: {
             from: '',
             to: '',
-            mode: '',
+            mode: 'DRIVE',
             durationMinutes: null,
             notes: ''
           }
@@ -63,14 +66,14 @@ export const demoTravelData = {
           id: 'leg-drive',
           from: 'Toronto',
           to: 'Montreal',
-          mode: 'Car',
+          mode: 'DRIVE',
           durationMinutes: 360,
           notes: 'Leave early to avoid the afternoon traffic around Kingston.',
           returnType: 'different',
           returnLeg: {
             from: 'Montreal',
             to: 'Toronto',
-            mode: 'Train',
+            mode: 'DRIVE',
             durationMinutes: 315,
             notes: 'Return by train if the drive looks heavy.'
           }
@@ -86,14 +89,14 @@ export const demoTravelData = {
           id: 'leg-flight',
           from: 'Toronto Pearson',
           to: 'Halifax Stanfield',
-          mode: 'Flight',
+          mode: 'FLIGHT',
           durationMinutes: 125,
           notes: 'Check carry-on rules before booking basic fare.',
           returnType: 'roundtrip',
           returnLeg: {
             from: '',
             to: '',
-            mode: '',
+            mode: 'DRIVE',
             durationMinutes: null,
             notes: ''
           }

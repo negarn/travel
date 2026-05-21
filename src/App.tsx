@@ -16,12 +16,13 @@ import type {
   TravelAppState,
   TravelLeg,
   TravelLocation,
+  TravelMode,
   TravelReturnLeg,
   TravelReturnType,
   Trip
 } from './types/travel';
 
-type ActiveTab = 'trips' | 'history' | 'locations' | 'lists' | 'sync';
+type ActiveTab = 'trips' | 'history' | 'locations' | 'lists' | 'settings';
 type LegacyTrip = Omit<
   Trip,
   | 'locationId'
@@ -46,7 +47,12 @@ const tabs: Array<{ id: ActiveTab; label: string }> = [
   { id: 'trips', label: 'Trips' },
   { id: 'lists', label: 'Packing lists' },
   { id: 'history', label: 'History' },
-  { id: 'sync', label: 'Cloud sync' }
+  { id: 'settings', label: 'Settings' }
+];
+const travelModeOptions: Array<{ value: TravelMode; label: string }> = [
+  { value: 'DRIVE', label: 'Drive' },
+  { value: 'BICYCLE', label: 'Bicycle' },
+  { value: 'FLIGHT', label: 'Flight' }
 ];
 const activeTabStorageKey = 'travel-plans-active-tab';
 const noteHeightStoragePrefix = 'travel-plans-note-height:';
@@ -98,6 +104,14 @@ function sortTripsByStartDate(trips: Trip[]): Trip[] {
   return [...trips].sort(
     (firstTrip, secondTrip) =>
       getTripStartTime(firstTrip) - getTripStartTime(secondTrip)
+  );
+}
+
+function sortLocationsByName(locations: TravelLocation[]): TravelLocation[] {
+  return [...locations].sort((firstLocation, secondLocation) =>
+    firstLocation.name.localeCompare(secondLocation.name, undefined, {
+      sensitivity: 'base'
+    })
   );
 }
 
@@ -158,7 +172,7 @@ function createDefaultTravelLeg(to = ''): TravelLeg {
     id: createId('leg'),
     from: '',
     to,
-    mode: '',
+    mode: 'DRIVE',
     durationMinutes: null,
     notes: '',
     returnType: 'roundtrip',
@@ -170,7 +184,7 @@ function createDefaultTravelReturnLeg(): TravelReturnLeg {
   return {
     from: '',
     to: '',
-    mode: '',
+    mode: 'DRIVE',
     durationMinutes: null,
     notes: ''
   };
@@ -369,6 +383,524 @@ function RouteReturnToggle({
   );
 }
 
+function TravelModeSelect({
+  value,
+  onChange
+}: {
+  value: TravelMode;
+  onChange: (value: TravelMode) => void;
+}): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOption =
+    travelModeOptions.find((option) => option.value === value) ??
+    travelModeOptions[0];
+
+  function closeOptions() {
+    setIsOpen(false);
+  }
+
+  function selectMode(nextValue: TravelMode) {
+    onChange(nextValue);
+    closeOptions();
+  }
+
+  return (
+    <div className="location-picker">
+      <button
+        aria-expanded={isOpen}
+        className="select-field mode-picker-button"
+        type="button"
+        onBlur={closeOptions}
+        onClick={() => setIsOpen((currentValue) => !currentValue)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            closeOptions();
+          }
+        }}
+      >
+        <span>{selectedOption.label}</span>
+        <span aria-hidden="true" className="mode-picker-caret" />
+      </button>
+      {isOpen ? (
+        <div className="location-picker-menu">
+          {travelModeOptions.map((option) => (
+            <button
+              className={
+                option.value === value
+                  ? 'location-picker-option location-picker-option-selected'
+                  : 'location-picker-option'
+              }
+              key={option.value}
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                selectMode(option.value);
+              }}
+            >
+              <span className="picker-option-content">
+                <span>{option.label}</span>
+              </span>
+              {option.value === value ? (
+                <span className="selected-pill">Selected</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type AddressAutocompleteSuggestion = {
+  id: string;
+  label: string;
+};
+
+type RouteMapResult = {
+  distanceMeters: number | null;
+  durationMinutes: number | null;
+  mapImageUrl: string;
+  mapsUrl: string;
+  travelMode: string;
+};
+
+type AddressAutocompleteInputProps = {
+  value: string;
+  homeAddress: string;
+  placesAutocompleteEnabled: boolean;
+  placeholder?: string;
+  onChange: (value: string) => void;
+};
+
+function AddressAutocompleteInput({
+  value,
+  homeAddress,
+  placesAutocompleteEnabled,
+  onChange,
+  placeholder
+}: AddressAutocompleteInputProps): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const [sessionToken, setSessionToken] = useState('');
+  const [suggestions, setSuggestions] = useState<AddressAutocompleteSuggestion[]>(
+    []
+  );
+  const [isPlacesConfigured, setIsPlacesConfigured] = useState(true);
+  const [placesError, setPlacesError] = useState('');
+  const trimmedHomeAddress = homeAddress.trim();
+  const showHomeOption =
+    Boolean(trimmedHomeAddress) && trimmedHomeAddress !== value.trim();
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSuggestions([]);
+      setPlacesError('');
+      return undefined;
+    }
+
+    const input = value.trim();
+
+    if (!placesAutocompleteEnabled || input.length < 3) {
+      setSuggestions([]);
+      setPlacesError('');
+      setIsPlacesConfigured(true);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void fetch(travelApiPaths.placesAutocomplete, {
+        body: JSON.stringify({ input, sessionToken }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        signal: controller.signal
+      })
+        .then(async (response) => {
+          const payload = (await response.json()) as {
+            error?: string;
+            isConfigured?: boolean;
+            suggestions?: AddressAutocompleteSuggestion[];
+          };
+
+          if (!response.ok) {
+            throw new Error(payload.error || 'Could not load address suggestions.');
+          }
+
+          return payload;
+        })
+        .then((payload) => {
+          setIsPlacesConfigured(payload.isConfigured !== false);
+          setPlacesError(payload.error ?? '');
+          setSuggestions(payload.suggestions ?? []);
+        })
+        .catch((error) => {
+          if (!controller.signal.aborted) {
+            console.error(error);
+            setPlacesError(
+              error instanceof Error
+                ? error.message
+                : 'Could not load address suggestions.'
+            );
+            setSuggestions([]);
+          }
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isOpen, placesAutocompleteEnabled, sessionToken, value]);
+
+  function openSuggestions() {
+    setIsOpen(true);
+
+    if (!sessionToken) {
+      setSessionToken(crypto.randomUUID());
+    }
+  }
+
+  function closeSuggestions() {
+    setIsOpen(false);
+    setSessionToken('');
+  }
+
+  function selectAddress(address: string) {
+    onChange(address);
+    closeSuggestions();
+  }
+
+  const hasSuggestions =
+    isOpen &&
+    (showHomeOption ||
+      suggestions.length > 0 ||
+      !isPlacesConfigured ||
+      Boolean(placesError));
+
+  return (
+    <div className="location-picker">
+      <input
+        value={value}
+        onBlur={closeSuggestions}
+        onChange={(event) => {
+          onChange(event.target.value);
+          openSuggestions();
+        }}
+        onFocus={openSuggestions}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            closeSuggestions();
+          }
+        }}
+        placeholder={placeholder}
+      />
+      {hasSuggestions ? (
+        <div className="location-picker-menu">
+          {showHomeOption ? (
+            <button
+              className="location-picker-option"
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                selectAddress(trimmedHomeAddress);
+              }}
+            >
+              <span className="picker-option-content">
+                <span>Home</span>
+                <small>{trimmedHomeAddress}</small>
+              </span>
+            </button>
+          ) : null}
+          {suggestions.map((suggestion) => (
+            <button
+              className="location-picker-option"
+              key={suggestion.id}
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                selectAddress(suggestion.label);
+              }}
+            >
+              <span className="picker-option-content">
+                <span>{suggestion.label}</span>
+              </span>
+            </button>
+          ))}
+          {!isPlacesConfigured ? (
+            <p className="picker-empty">
+              Set TRAVEL_GOOGLE_MAPS_API_KEY to enable Google address search.
+            </p>
+          ) : null}
+          {placesError ? <p className="picker-empty">{placesError}</p> : null}
+          {suggestions.length > 0 ? (
+            <p className="picker-attribution">Powered by Google</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatDistanceMeters(value: number | null): string {
+  if (value === null) {
+    return '';
+  }
+
+  const kilometers = value / 1000;
+
+  if (kilometers >= 10) {
+    return `${Math.round(kilometers).toLocaleString()} km`;
+  }
+
+  return `${kilometers.toFixed(1)} km`;
+}
+
+async function getRouteMapImageError(response: Response): Promise<string> {
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (contentType.includes('application/json')) {
+    const payload = (await response.json()) as { error?: unknown };
+
+    return typeof payload.error === 'string' && payload.error
+      ? payload.error
+      : 'Could not load route map.';
+  }
+
+  const responseText = (await response.text()).trim();
+
+  return responseText || 'Could not load route map.';
+}
+
+function RouteMapImage({
+  alt,
+  mapImageUrl,
+  mapsUrl
+}: {
+  alt: string;
+  mapImageUrl: string;
+  mapsUrl: string;
+}): JSX.Element {
+  const [imageSrc, setImageSrc] = useState('');
+  const [imageError, setImageError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl = '';
+
+    setImageSrc('');
+    setImageError('');
+    setIsLoading(true);
+
+    void fetch(mapImageUrl, { signal: controller.signal })
+      .then(async (response) => {
+        const contentType = response.headers.get('content-type') ?? '';
+
+        if (!response.ok || !contentType.startsWith('image/')) {
+          throw new Error(await getRouteMapImageError(response));
+        }
+
+        objectUrl = URL.createObjectURL(await response.blob());
+        setImageSrc(objectUrl);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          console.error(error);
+          setImageError(
+            error instanceof Error ? error.message : 'Could not load route map.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [mapImageUrl]);
+
+  if (isLoading) {
+    return <div className="route-map-status">Loading route map...</div>;
+  }
+
+  if (imageError || !imageSrc) {
+    return (
+      <div className="route-map-status route-map-status-error" role="status">
+        {imageError || 'Could not load route map.'}
+      </div>
+    );
+  }
+
+  return (
+    <a
+      aria-label="Open route in Google Maps"
+      className="route-map-link"
+      href={mapsUrl}
+      rel="noreferrer"
+      target="_blank"
+    >
+      <img
+        alt={alt}
+        src={imageSrc}
+        onError={() => setImageError('Could not display route map.')}
+      />
+    </a>
+  );
+}
+
+function RouteMapPreview({
+  currentDurationMinutes,
+  destination,
+  mapsEnabled,
+  mode,
+  onDurationMinutesChange,
+  origin
+}: {
+  currentDurationMinutes: number | null;
+  destination: string;
+  mapsEnabled: boolean;
+  mode: string;
+  onDurationMinutesChange: (durationMinutes: number) => void;
+  origin: string;
+}): JSX.Element | null {
+  const [route, setRoute] = useState<RouteMapResult | null>(null);
+  const [error, setError] = useState('');
+  const [isConfigured, setIsConfigured] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const trimmedOrigin = origin.trim();
+  const trimmedDestination = destination.trim();
+
+  useEffect(() => {
+    if (
+      !mapsEnabled ||
+      mode === 'FLIGHT' ||
+      !trimmedOrigin ||
+      !trimmedDestination
+    ) {
+      setRoute(null);
+      setError('');
+      setIsConfigured(true);
+      setIsLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setIsLoading(true);
+
+      void fetch(travelApiPaths.mapsRoute, {
+        body: JSON.stringify({
+          destination: trimmedDestination,
+          mode,
+          origin: trimmedOrigin
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        signal: controller.signal
+      })
+        .then(async (response) => {
+          const payload = (await response.json()) as {
+            error?: string;
+            isConfigured?: boolean;
+            route?: RouteMapResult | null;
+          };
+
+          if (!response.ok) {
+            throw new Error(payload.error || 'Could not calculate this route.');
+          }
+
+          return payload;
+        })
+        .then((payload) => {
+          const nextRoute = payload.route ?? null;
+
+          setIsConfigured(payload.isConfigured !== false);
+          setError(payload.error ?? '');
+          setRoute(nextRoute);
+
+          if (
+            nextRoute?.durationMinutes &&
+            nextRoute.durationMinutes !== currentDurationMinutes
+          ) {
+            onDurationMinutesChange(nextRoute.durationMinutes);
+          }
+        })
+        .catch((fetchError) => {
+          if (!controller.signal.aborted) {
+            console.error(fetchError);
+            setError(
+              fetchError instanceof Error
+                ? fetchError.message
+                : 'Could not calculate this route.'
+            );
+            setRoute(null);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setIsLoading(false);
+          }
+        });
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [destination, mapsEnabled, mode, origin]);
+
+  if (!mapsEnabled || (!route && !error && isConfigured && !isLoading)) {
+    return null;
+  }
+
+  if (!isConfigured) {
+    return (
+      <p className="empty-state">
+        Set TRAVEL_GOOGLE_MAPS_API_KEY to render route maps.
+      </p>
+    );
+  }
+
+  if (error) {
+    return <p className="empty-state">{error}</p>;
+  }
+
+  if (!route) {
+    return <p className="route-preview-status">Calculating route...</p>;
+  }
+
+  const distanceLabel = formatDistanceMeters(route.distanceMeters);
+
+  return (
+    <div className="route-preview">
+      {route.mapImageUrl ? (
+        <RouteMapImage
+          alt={`Route map from ${trimmedOrigin} to ${trimmedDestination}`}
+          mapImageUrl={route.mapImageUrl}
+          mapsUrl={route.mapsUrl}
+        />
+      ) : null}
+      <div className="route-preview-footer">
+        <span>{formatDuration(route.durationMinutes)}</span>
+        {distanceLabel ? <span>{distanceLabel}</span> : null}
+        <a href={route.mapsUrl} rel="noreferrer" target="_blank">
+          Open in Google Maps
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function normalizeTrip(trip: LegacyTrip, locations: TravelLocation[]): Trip {
   const matchingLocation =
     locations.find((location) => location.id === trip.locationId) ??
@@ -497,6 +1029,7 @@ function normalizeStoredState(
 ): TravelAppState {
   const rawTrips = (storedState.trips ?? fallbackState.trips) as LegacyTrip[];
   const packingLists = storedState.packingLists ?? fallbackState.packingLists;
+  const settings = storedState.settings ?? fallbackState.settings;
   const migratedLocations = rawTrips
     .filter((trip) => trip.location.trim())
     .map((trip) => ({
@@ -526,6 +1059,7 @@ function normalizeStoredState(
     trips,
     packingLists,
     locations,
+    settings,
     selectedTripId,
     selectedLocationId
   };
@@ -714,6 +1248,10 @@ function App({
     appState.locations.find(
       (location) => location.id === appState.selectedLocationId
     ) ?? appState.locations[0];
+  const sortedLocations = useMemo(
+    () => sortLocationsByName(appState.locations),
+    [appState.locations]
+  );
 
   const selectedPackingList =
     appState.packingLists.find((list) => list.id === selectedPackingListId) ??
@@ -841,6 +1379,16 @@ function App({
       packingLists: current.packingLists.map((packingList) =>
         packingList.id === packingListId ? updater(packingList) : packingList
       )
+    }));
+  }
+
+  function updateHomeAddress(homeAddress: string) {
+    setAppState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        homeAddress
+      }
     }));
   }
 
@@ -1570,14 +2118,17 @@ function App({
                     </label>
                     <label className="field">
                       <span>Stay address</span>
-                      <input
+                      <AddressAutocompleteInput
                         value={selectedTrip.stayAddress}
-                        onChange={(event) =>
+                        homeAddress={appState.settings.homeAddress}
+                        placesAutocompleteEnabled={isServerBacked}
+                        onChange={(value) =>
                           updateSelectedTrip((trip) => ({
                             ...trip,
-                            stayAddress: event.target.value
+                            stayAddress: value
                           }))
                         }
+                        placeholder="Address or place"
                       />
                     </label>
                   </div>
@@ -1636,42 +2187,44 @@ function App({
                             <span>{formatDuration(leg.durationMinutes)}</span>
                           </div>
                           <div className="form-grid compact">
-                            {leg.returnType === 'different' ? (
-                              <>
-                                <label className="field">
-                                  <span>From</span>
-                                  <input
-                                    value={leg.from}
-                                    onChange={(event) =>
-                                      updateTripTravelLeg(leg.id, (currentLeg) => ({
-                                        ...currentLeg,
-                                        from: event.target.value
-                                      }))
-                                    }
-                                  />
-                                </label>
-                                <label className="field">
-                                  <span>To</span>
-                                  <input
-                                    value={leg.to}
-                                    onChange={(event) =>
-                                      updateTripTravelLeg(leg.id, (currentLeg) => ({
-                                        ...currentLeg,
-                                        to: event.target.value
-                                      }))
-                                    }
-                                  />
-                                </label>
-                              </>
-                            ) : null}
                             <label className="field">
-                              <span>Mode</span>
-                              <input
-                                value={leg.mode}
-                                onChange={(event) =>
+                              <span>From</span>
+                              <AddressAutocompleteInput
+                                value={leg.from}
+                                homeAddress={appState.settings.homeAddress}
+                                placesAutocompleteEnabled={isServerBacked}
+                                onChange={(value) =>
                                   updateTripTravelLeg(leg.id, (currentLeg) => ({
                                     ...currentLeg,
-                                    mode: event.target.value
+                                    from: value
+                                  }))
+                                }
+                                placeholder="Start address or place"
+                              />
+                            </label>
+                            <label className="field">
+                              <span>To</span>
+                              <AddressAutocompleteInput
+                                value={leg.to}
+                                homeAddress={appState.settings.homeAddress}
+                                placesAutocompleteEnabled={isServerBacked}
+                                onChange={(value) =>
+                                  updateTripTravelLeg(leg.id, (currentLeg) => ({
+                                    ...currentLeg,
+                                    to: value
+                                  }))
+                                }
+                                placeholder="Destination address or place"
+                              />
+                            </label>
+                            <label className="field">
+                              <span>Mode</span>
+                              <TravelModeSelect
+                                value={leg.mode}
+                                onChange={(value) =>
+                                  updateTripTravelLeg(leg.id, (currentLeg) => ({
+                                    ...currentLeg,
+                                    mode: value
                                   }))
                                 }
                               />
@@ -1693,6 +2246,19 @@ function App({
                               />
                             </label>
                           </div>
+                          <RouteMapPreview
+                            currentDurationMinutes={leg.durationMinutes}
+                            destination={leg.to}
+                            mapsEnabled={isServerBacked}
+                            mode={leg.mode}
+                            origin={leg.from}
+                            onDurationMinutesChange={(durationMinutes) =>
+                              updateTripTravelLeg(leg.id, (currentLeg) => ({
+                                ...currentLeg,
+                                durationMinutes
+                              }))
+                            }
+                          />
                           <label className="field">
                             <span>Notes</span>
                             <PersistentNoteTextarea
@@ -1718,44 +2284,50 @@ function App({
                               <div className="form-grid compact">
                                 <label className="field">
                                   <span>From</span>
-                                  <input
+                                  <AddressAutocompleteInput
                                     value={leg.returnLeg.from}
-                                    onChange={(event) =>
+                                    homeAddress={appState.settings.homeAddress}
+                                    placesAutocompleteEnabled={isServerBacked}
+                                    onChange={(value) =>
                                       updateTripTravelLeg(leg.id, (currentLeg) => ({
                                         ...currentLeg,
                                         returnLeg: {
                                           ...currentLeg.returnLeg,
-                                          from: event.target.value
+                                          from: value
                                         }
                                       }))
                                     }
+                                    placeholder="Return start address or place"
                                   />
                                 </label>
                                 <label className="field">
                                   <span>To</span>
-                                  <input
+                                  <AddressAutocompleteInput
                                     value={leg.returnLeg.to}
-                                    onChange={(event) =>
+                                    homeAddress={appState.settings.homeAddress}
+                                    placesAutocompleteEnabled={isServerBacked}
+                                    onChange={(value) =>
                                       updateTripTravelLeg(leg.id, (currentLeg) => ({
                                         ...currentLeg,
                                         returnLeg: {
                                           ...currentLeg.returnLeg,
-                                          to: event.target.value
+                                          to: value
                                         }
                                       }))
                                     }
+                                    placeholder="Return destination address or place"
                                   />
                                 </label>
                                 <label className="field">
                                   <span>Mode</span>
-                                  <input
+                                  <TravelModeSelect
                                     value={leg.returnLeg.mode}
-                                    onChange={(event) =>
+                                    onChange={(value) =>
                                       updateTripTravelLeg(leg.id, (currentLeg) => ({
                                         ...currentLeg,
                                         returnLeg: {
                                           ...currentLeg.returnLeg,
-                                          mode: event.target.value
+                                          mode: value
                                         }
                                       }))
                                     }
@@ -1781,6 +2353,24 @@ function App({
                                   />
                                 </label>
                               </div>
+                              <RouteMapPreview
+                                currentDurationMinutes={
+                                  leg.returnLeg.durationMinutes
+                                }
+                                destination={leg.returnLeg.to}
+                                mapsEnabled={isServerBacked}
+                                mode={leg.returnLeg.mode}
+                                origin={leg.returnLeg.from}
+                                onDurationMinutesChange={(durationMinutes) =>
+                                  updateTripTravelLeg(leg.id, (currentLeg) => ({
+                                    ...currentLeg,
+                                    returnLeg: {
+                                      ...currentLeg.returnLeg,
+                                      durationMinutes
+                                    }
+                                  }))
+                                }
+                              />
                               <label className="field">
                                 <span>Return notes</span>
                                 <PersistentNoteTextarea
@@ -2026,7 +2616,7 @@ function App({
                 </button>
               </div>
               <div className="mt-4 grid gap-2">
-                {appState.locations.map((location) => (
+                {sortedLocations.map((location) => (
                   <button
                     className={
                       location.id === selectedLocation?.id
@@ -2127,42 +2717,44 @@ function App({
                           <span>{formatDuration(leg.durationMinutes)}</span>
                         </div>
                         <div className="form-grid compact">
-                          {leg.returnType === 'different' ? (
-                            <>
-                              <label className="field">
-                                <span>From</span>
-                                <input
-                                  value={leg.from}
-                                  onChange={(event) =>
-                                    updateTravelLeg(leg.id, (currentLeg) => ({
-                                      ...currentLeg,
-                                      from: event.target.value
-                                    }))
-                                  }
-                                />
-                              </label>
-                              <label className="field">
-                                <span>To</span>
-                                <input
-                                  value={leg.to}
-                                  onChange={(event) =>
-                                    updateTravelLeg(leg.id, (currentLeg) => ({
-                                      ...currentLeg,
-                                      to: event.target.value
-                                    }))
-                                  }
-                                />
-                              </label>
-                            </>
-                          ) : null}
                           <label className="field">
-                            <span>Mode</span>
-                            <input
-                              value={leg.mode}
-                              onChange={(event) =>
+                            <span>From</span>
+                            <AddressAutocompleteInput
+                              value={leg.from}
+                              homeAddress={appState.settings.homeAddress}
+                              placesAutocompleteEnabled={isServerBacked}
+                              onChange={(value) =>
                                 updateTravelLeg(leg.id, (currentLeg) => ({
                                   ...currentLeg,
-                                  mode: event.target.value
+                                  from: value
+                                }))
+                              }
+                              placeholder="Start address or place"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>To</span>
+                            <AddressAutocompleteInput
+                              value={leg.to}
+                              homeAddress={appState.settings.homeAddress}
+                              placesAutocompleteEnabled={isServerBacked}
+                              onChange={(value) =>
+                                updateTravelLeg(leg.id, (currentLeg) => ({
+                                  ...currentLeg,
+                                  to: value
+                                }))
+                              }
+                              placeholder="Destination address or place"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Mode</span>
+                            <TravelModeSelect
+                              value={leg.mode}
+                              onChange={(value) =>
+                                updateTravelLeg(leg.id, (currentLeg) => ({
+                                  ...currentLeg,
+                                  mode: value
                                 }))
                               }
                             />
@@ -2184,6 +2776,19 @@ function App({
                             />
                           </label>
                         </div>
+                        <RouteMapPreview
+                          currentDurationMinutes={leg.durationMinutes}
+                          destination={leg.to}
+                          mapsEnabled={isServerBacked}
+                          mode={leg.mode}
+                          origin={leg.from}
+                          onDurationMinutesChange={(durationMinutes) =>
+                            updateTravelLeg(leg.id, (currentLeg) => ({
+                              ...currentLeg,
+                              durationMinutes
+                            }))
+                          }
+                        />
                         <label className="field">
                           <span>Notes</span>
                           <PersistentNoteTextarea
@@ -2209,44 +2814,50 @@ function App({
                             <div className="form-grid compact">
                               <label className="field">
                                 <span>From</span>
-                                <input
+                                <AddressAutocompleteInput
                                   value={leg.returnLeg.from}
-                                  onChange={(event) =>
+                                  homeAddress={appState.settings.homeAddress}
+                                  placesAutocompleteEnabled={isServerBacked}
+                                  onChange={(value) =>
                                     updateTravelLeg(leg.id, (currentLeg) => ({
                                       ...currentLeg,
                                       returnLeg: {
                                         ...currentLeg.returnLeg,
-                                        from: event.target.value
+                                        from: value
                                       }
                                     }))
                                   }
+                                  placeholder="Return start address or place"
                                 />
                               </label>
                               <label className="field">
                                 <span>To</span>
-                                <input
+                                <AddressAutocompleteInput
                                   value={leg.returnLeg.to}
-                                  onChange={(event) =>
+                                  homeAddress={appState.settings.homeAddress}
+                                  placesAutocompleteEnabled={isServerBacked}
+                                  onChange={(value) =>
                                     updateTravelLeg(leg.id, (currentLeg) => ({
                                       ...currentLeg,
                                       returnLeg: {
                                         ...currentLeg.returnLeg,
-                                        to: event.target.value
+                                        to: value
                                       }
                                     }))
                                   }
+                                  placeholder="Return destination address or place"
                                 />
                               </label>
                               <label className="field">
                                 <span>Mode</span>
-                                <input
+                                <TravelModeSelect
                                   value={leg.returnLeg.mode}
-                                  onChange={(event) =>
+                                  onChange={(value) =>
                                     updateTravelLeg(leg.id, (currentLeg) => ({
                                       ...currentLeg,
                                       returnLeg: {
                                         ...currentLeg.returnLeg,
-                                        mode: event.target.value
+                                        mode: value
                                       }
                                     }))
                                   }
@@ -2272,6 +2883,24 @@ function App({
                                 />
                               </label>
                             </div>
+                            <RouteMapPreview
+                              currentDurationMinutes={
+                                leg.returnLeg.durationMinutes
+                              }
+                              destination={leg.returnLeg.to}
+                              mapsEnabled={isServerBacked}
+                              mode={leg.returnLeg.mode}
+                              origin={leg.returnLeg.from}
+                              onDurationMinutesChange={(durationMinutes) =>
+                                updateTravelLeg(leg.id, (currentLeg) => ({
+                                  ...currentLeg,
+                                  returnLeg: {
+                                    ...currentLeg.returnLeg,
+                                    durationMinutes
+                                  }
+                                }))
+                              }
+                            />
                             <label className="field">
                               <span>Return notes</span>
                               <PersistentNoteTextarea
@@ -2456,17 +3085,41 @@ function App({
           </section>
         ) : null}
 
-        {activeTab === 'sync' ? (
-          isServerBacked ? (
-            <CloudSyncPanel />
-          ) : (
+        {activeTab === 'settings' ? (
+          <section className="grid gap-5">
             <section className="panel">
-              <p className="empty-state">
-                Cloud sync is available when the app is running with the local
-                travel data API.
-              </p>
+              <div className="grid gap-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-app-ink">Settings</h2>
+                  <p className="mt-1 text-sm text-app-muted">
+                    Save defaults that make trip planning faster.
+                  </p>
+                </div>
+
+                <label className="field">
+                  <span>Home address</span>
+                  <AddressAutocompleteInput
+                    value={appState.settings.homeAddress}
+                    homeAddress=""
+                    placesAutocompleteEnabled={isServerBacked}
+                    onChange={updateHomeAddress}
+                    placeholder="Type your home address"
+                  />
+                </label>
+              </div>
             </section>
-          )
+
+            {isServerBacked ? (
+              <CloudSyncPanel />
+            ) : (
+              <section className="panel">
+                <p className="empty-state">
+                  Cloud sync is available when the app is running with the local
+                  travel data API.
+                </p>
+              </section>
+            )}
+          </section>
         ) : null}
       </div>
     </main>

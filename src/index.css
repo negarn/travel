@@ -165,6 +165,14 @@
     @apply resize-y;
   }
 
+  .mode-picker-button {
+    @apply flex items-center justify-between gap-3 pr-3 text-left;
+  }
+
+  .mode-picker-caret {
+    @apply size-2 shrink-0 rotate-45 border-b-2 border-r-2 border-app-ink;
+  }
+
   .location-picker {
     @apply relative;
   }
@@ -199,6 +207,10 @@
 
   .picker-empty {
     @apply px-3 py-2 text-sm font-semibold text-app-muted;
+  }
+
+  .picker-attribution {
+    @apply px-3 py-2 text-right text-xs font-semibold text-app-muted;
   }
 
   .inline-form {
@@ -241,6 +253,42 @@
 
   .route-toggle-button-active {
     @apply bg-app-steel text-white shadow-sm enabled:hover:bg-app-steel enabled:hover:text-white;
+  }
+
+  .route-preview {
+    @apply overflow-hidden rounded-md border border-app-line-strong bg-app-surface;
+  }
+
+  .route-map-link {
+    @apply block bg-app-steel-soft transition hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus;
+  }
+
+  .route-map-link img {
+    @apply block aspect-[26/10] w-full object-cover;
+  }
+
+  .route-map-status {
+    @apply flex aspect-[32/11] w-full items-center justify-center overflow-auto bg-app-steel-soft px-4 py-3 text-center text-sm font-semibold leading-6 text-app-muted;
+  }
+
+  .route-map-status-error {
+    @apply items-start text-left text-app-ink;
+  }
+
+  .route-preview-footer {
+    @apply flex flex-wrap items-center gap-3 px-3 py-2 text-sm font-semibold text-app-muted;
+  }
+
+  .route-preview-footer span:first-child {
+    @apply text-app-ink;
+  }
+
+  .route-preview-footer a {
+    @apply ml-auto text-app-steel underline decoration-app-line-strong underline-offset-4 transition hover:text-app-sage;
+  }
+
+  .route-preview-status {
+    @apply rounded-md border border-dashed border-app-line-strong bg-app-surface p-3 text-sm font-semibold text-app-muted;
   }
 
   .item-list {

@@ -45,7 +45,8 @@ npm run demo:seed
 - Manage upcoming trips and automatically separate past trips into History.
 
   ![Travel planning with upcoming trips automatically separated from History](docs/trip-history.gif)
-- Store reusable locations with notes and saved travel routes.
+- Store reusable locations with notes and saved travel routes, with a home
+  address available in route fields.
 
   ![Reusable travel locations with notes and saved routes](docs/reusable-locations.gif)
 - Add trip-specific stay details, notes, travel routes, and checklists.
@@ -83,8 +84,8 @@ requests are only accepted from localhost unless `TRAVEL_PUBLIC_ORIGIN` is set.
 
 ## Cloud sync
 
-Cloud sync is optional. Configure one or both providers before using the Cloud
-sync tab:
+Cloud sync is optional. Configure one or both providers before using the
+Settings screen:
 
 ```sh
 TRAVEL_GOOGLE_DRIVE_CLIENT_ID=...
@@ -101,6 +102,23 @@ TRAVEL_PUBLIC_ORIGIN=https://your-public-origin.example
 
 Google Drive sync uses the Drive app data scope. Dropbox sync uses the app
 folder with read, write, and metadata scopes.
+
+## Address autocomplete
+
+Address suggestions and route maps use Google Maps Platform APIs when
+configured:
+
+```sh
+TRAVEL_GOOGLE_MAPS_API_KEY=...
+```
+
+Restart the dev server after changing the key. Because the app calls Google from
+the local Vite API server, use a key that is allowed to call the Places API,
+Routes API, and Maps Static API from a server-side web service.
+
+The key stays on the local Vite API server. If it is not set, address fields and
+manual route details still work normally, and address fields show the saved home
+address as a quick option.
 
 ## Scripts
 

@@ -20,4 +20,4 @@ USER node
 
 EXPOSE 4173
 
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]
+CMD ["npm", "run", "start"]

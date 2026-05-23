@@ -132,9 +132,10 @@ fields show the saved home address as a quick option.
 - `npm run dev:demo` starts a demo server with sample travel data on port `5174`.
 - `npm run demo:seed` writes demo data to `.travel-demo/travel-data.json`.
 - `npm run build` type-checks and builds the app.
+- `npm start` serves the built app with the production Node server.
 - `npm run test:run` runs the Vitest suite once.
 - `npm run test` runs Vitest in watch mode.
-- `npm run preview` serves the production build.
+- `npm run preview` serves the production browser build with Vite.
 - `npm run storybook` opens Storybook with populated and empty app states.
 - `npm run build-storybook` builds the Storybook static site.
 
@@ -154,7 +155,7 @@ npm run build
 
 ## Docker
 
-Build and run the production preview server:
+Build and run the production server:
 
 ```sh
 docker build -t travel-plans .

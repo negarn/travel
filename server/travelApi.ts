@@ -593,50 +593,63 @@ cloudSyncManager = createCloudSyncManager({
   onError: console.error
 });
 
+export async function initializeTravelApi() {
+  await cloudSyncManager?.initialize();
+}
+
+export async function handleTravelApiRequest(
+  request: IncomingMessage,
+  response: ServerResponse
+) {
+  const requestPath = getRequestPath(request);
+
+  if (!requestPath.startsWith('/api/')) {
+    return false;
+  }
+
+  if (!isTrustedRequest(request, requestPath)) {
+    sendJson(response, 403, {
+      error: getConfiguredPublicOrigin()
+        ? 'This API is only available from localhost or the configured public origin.'
+        : 'This API is only available from localhost.'
+    });
+    return true;
+  }
+
+  if (await cloudSyncManager?.handleRequest(request, response)) {
+    return true;
+  }
+
+  if (requestPath === travelApiPaths.mapsRoute) {
+    await handleMapsRouteRoute(request, response);
+    return true;
+  }
+
+  if (requestPath === travelApiPaths.placesAutocomplete) {
+    await handlePlacesAutocompleteRoute(request, response);
+    return true;
+  }
+
+  if (requestPath === travelApiPaths.data) {
+    await handleTravelDataRoute(request, response);
+    return true;
+  }
+
+  sendJson(response, 404, { error: 'API route not found.' });
+  return true;
+}
+
 export function travelApi(): Plugin {
   return {
     name: 'travel-api',
     configureServer(server) {
-      void cloudSyncManager?.initialize();
+      void initializeTravelApi();
 
       (server.middlewares as MiddlewareStack).use((request, response, next) => {
         void (async () => {
-          const requestPath = getRequestPath(request);
-
-          if (!requestPath.startsWith('/api/')) {
+          if (!(await handleTravelApiRequest(request, response))) {
             next();
-            return;
           }
-
-          if (!isTrustedRequest(request, requestPath)) {
-            sendJson(response, 403, {
-              error: getConfiguredPublicOrigin()
-                ? 'This API is only available from localhost or the configured public origin.'
-                : 'This API is only available from localhost.'
-            });
-            return;
-          }
-
-          if (await cloudSyncManager?.handleRequest(request, response)) {
-            return;
-          }
-
-          if (requestPath === travelApiPaths.mapsRoute) {
-            await handleMapsRouteRoute(request, response);
-            return;
-          }
-
-          if (requestPath === travelApiPaths.placesAutocomplete) {
-            await handlePlacesAutocompleteRoute(request, response);
-            return;
-          }
-
-          if (requestPath === travelApiPaths.data) {
-            await handleTravelDataRoute(request, response);
-            return;
-          }
-
-          next();
         })().catch((error) => {
           if (error instanceof InvalidRequestBodyError) {
             sendJson(response, 400, { error: error.message });

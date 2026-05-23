@@ -5,6 +5,7 @@
 .vite
 coverage
 dist
+dist-server
 docs
 node_modules
 test-results

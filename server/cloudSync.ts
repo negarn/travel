@@ -763,15 +763,18 @@ export function createCloudSyncManager(options: CloudSyncManagerOptions) {
     await saveState();
 
     const remoteBundle = await downloadBundle(connection);
+    let didTransferData = false;
 
     if (remoteBundle && isTravelAppStateEmpty(localSnapshot)) {
       await options.applySnapshot(remoteBundle);
       await writeLocalBundle(remoteBundle);
-    } else {
+      didTransferData = true;
+    } else if (!remoteBundle) {
       await uploadBundle(connection, serializeCloudSyncBundle(localSnapshot));
+      didTransferData = true;
     }
 
-    connection.lastSyncedAt = new Date().toISOString();
+    connection.lastSyncedAt = didTransferData ? new Date().toISOString() : null;
     lastErrorByProvider[provider] = null;
     persistedState.activeConnection = connection;
     await saveState();

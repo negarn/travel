@@ -36,16 +36,22 @@ function getProviderSetupMessage(
 }
 
 function getProviderStatusLabel({
+  hasConnectionError,
   isActive,
   isConfigured,
   isConnecting
 }: {
+  hasConnectionError: boolean;
   isActive: boolean;
   isConfigured: boolean;
   isConnecting: boolean;
 }): string {
   if (isConnecting) {
     return 'Connecting';
+  }
+
+  if (hasConnectionError) {
+    return 'Needs attention';
   }
 
   if (isActive) {
@@ -82,6 +88,7 @@ function ProviderCard({
 }): JSX.Element {
   const providerLabel = cloudSyncProviderLabels[provider];
   const isActive = activeProvider === provider && status.isConnected;
+  const hasConnectionError = isActive && Boolean(status.lastError);
   const isConnecting = pendingProvider === provider;
   const setupMessage = getProviderSetupMessage(provider, status.isConfigured);
 
@@ -89,8 +96,13 @@ function ProviderCard({
     <section className="sync-card">
       <div className="sync-card-header">
         <h2>{providerLabel}</h2>
-        <span className={isActive ? 'sync-pill sync-pill-active' : 'sync-pill'}>
+        <span
+          className={
+            isActive && !hasConnectionError ? 'sync-pill sync-pill-active' : 'sync-pill'
+          }
+        >
           {getProviderStatusLabel({
+            hasConnectionError,
             isActive,
             isConfigured: status.isConfigured,
             isConnecting

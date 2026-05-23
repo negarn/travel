@@ -64,17 +64,39 @@ function getCloudSyncBundleFilePath(dataRootDir: string) {
   return resolve(dataRootDir, CLOUD_SYNC_BUNDLE_FILE_NAME);
 }
 
+function getEnvCredential(name: string) {
+  const rawValue = process.env[name]?.trim();
+
+  if (!rawValue) {
+    return null;
+  }
+
+  const firstCharacter = rawValue[0];
+  const lastCharacter = rawValue[rawValue.length - 1];
+
+  if (
+    rawValue.length >= 2 &&
+    ((firstCharacter === '"' && lastCharacter === '"') ||
+      (firstCharacter === "'" && lastCharacter === "'"))
+  ) {
+    const unquotedValue = rawValue.slice(1, -1).trim();
+    return unquotedValue || null;
+  }
+
+  return rawValue;
+}
+
 function getProviderConfig(provider: CloudSyncProvider) {
   switch (provider) {
     case 'google-drive':
       return {
-        clientId: process.env.TRAVEL_GOOGLE_DRIVE_CLIENT_ID ?? null,
-        clientSecret: process.env.TRAVEL_GOOGLE_DRIVE_CLIENT_SECRET ?? null
+        clientId: getEnvCredential('TRAVEL_GOOGLE_DRIVE_CLIENT_ID'),
+        clientSecret: getEnvCredential('TRAVEL_GOOGLE_DRIVE_CLIENT_SECRET')
       };
     case 'dropbox':
       return {
-        clientId: process.env.TRAVEL_DROPBOX_CLIENT_ID ?? null,
-        clientSecret: process.env.TRAVEL_DROPBOX_CLIENT_SECRET ?? null
+        clientId: getEnvCredential('TRAVEL_DROPBOX_CLIENT_ID'),
+        clientSecret: getEnvCredential('TRAVEL_DROPBOX_CLIENT_SECRET')
       };
   }
 }
@@ -760,6 +782,18 @@ export function createCloudSyncManager(options: CloudSyncManagerOptions) {
     return status;
   }
 
+  function setActiveConnectionError(error: unknown, fallbackMessage: string) {
+    const connection = persistedState.activeConnection;
+    const message = getErrorMessage(error, fallbackMessage);
+
+    if (connection) {
+      lastErrorByProvider[connection.provider] = message;
+      refreshStatus();
+    }
+
+    return message;
+  }
+
   async function scheduleSync() {
     if (!persistedState.activeConnection) {
       return;
@@ -775,11 +809,7 @@ export function createCloudSyncManager(options: CloudSyncManagerOptions) {
         const connection = persistedState.activeConnection;
 
         if (connection) {
-          lastErrorByProvider[connection.provider] = getErrorMessage(
-            error,
-            'Could not sync cloud data.'
-          );
-          refreshStatus();
+          setActiveConnectionError(error, 'Could not sync cloud data.');
         }
 
         options.onError?.(error);
@@ -793,6 +823,9 @@ export function createCloudSyncManager(options: CloudSyncManagerOptions) {
     request: IncomingMessage,
     response: ServerResponse
   ) {
+    lastErrorByProvider[provider] = null;
+    refreshStatus();
+
     const state = randomUUID();
     const redirectUri = getRedirectUri(request, provider);
     const authorizeUrl = createCloudSyncAuthorizeUrl({ provider, redirectUri, state });
@@ -888,7 +921,9 @@ export function createCloudSyncManager(options: CloudSyncManagerOptions) {
         await syncLocalBundleToRemote();
         sendJson(response, 200, { cloudSync: await getStatus() });
       } catch (error) {
-        sendJson(response, 500, { error: getErrorMessage(error, 'Could not sync cloud data.') });
+        sendJson(response, 500, {
+          error: setActiveConnectionError(error, 'Could not sync cloud data.')
+        });
       }
       return true;
     }
@@ -899,7 +934,10 @@ export function createCloudSyncManager(options: CloudSyncManagerOptions) {
         sendJson(response, 200, { cloudSync: await getStatus() });
       } catch (error) {
         sendJson(response, 500, {
-          error: getErrorMessage(error, 'Could not reset local data from cloud.')
+          error: setActiveConnectionError(
+            error,
+            'Could not reset local data from cloud.'
+          )
         });
       }
       return true;

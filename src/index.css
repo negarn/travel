@@ -246,6 +246,7 @@
   .field textarea,
   .select-field {
     @apply min-w-0 max-w-full rounded-md border border-app-line-strong bg-app-field px-3 py-2 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
+    box-sizing: border-box;
     width: 100%;
   }
 
@@ -256,6 +257,7 @@
 
   .date-time-field {
     @apply relative flex min-h-12 w-full min-w-0 max-w-full cursor-pointer items-center gap-3 rounded-md border border-app-line-strong bg-app-field px-3 py-2 text-base font-medium text-app-ink transition focus-within:border-app-sage focus-within:ring-4 focus-within:ring-app-focus;
+    box-sizing: border-box;
   }
 
   .date-time-display {
@@ -284,11 +286,13 @@
 
   .date-time-picker-field input {
     @apply min-h-10 min-w-0 max-w-full cursor-pointer;
+    box-sizing: border-box;
     inline-size: 100%;
   }
 
   .date-time-native-control {
     @apply relative block min-w-0 max-w-full;
+    box-sizing: border-box;
     inline-size: 100%;
   }
 
@@ -300,12 +304,6 @@
   .date-time-picker-field input[type='time']::-webkit-date-and-time-value {
     min-width: 0;
     text-align: left;
-  }
-
-  @supports (-webkit-touch-callout: none) {
-    .date-time-picker-grid {
-      padding-inline-end: 0.75rem;
-    }
   }
 
   .date-time-picker-field input::-webkit-calendar-picker-indicator {

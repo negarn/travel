@@ -146,6 +146,64 @@ function formatTripDateRange(trip: Trip): string {
   return startDate || endDate || 'No dates yet';
 }
 
+function parseLocalDateTime(value: string): Date | null {
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute] = match;
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute)
+  );
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateTimeFieldValue(value: string): string {
+  const date = parseLocalDateTime(value);
+
+  if (!date) {
+    return 'No date/time set';
+  }
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    day: 'numeric',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }).formatToParts(date);
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+
+  return `${getPart('month')} ${getPart('day')}, ${getPart('year')} at ${getPart(
+    'hour'
+  )}:${getPart('minute')}`;
+}
+
+function splitLocalDateTime(value: string): { date: string; time: string } {
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+
+  if (!match) {
+    return { date: '', time: '' };
+  }
+
+  return { date: match[1], time: match[2] };
+}
+
+function composeLocalDateTime(date: string, time: string): string {
+  return date ? `${date}T${time || '09:00'}` : '';
+}
+
 function reorderPackingItems(
   items: PackingListItem[],
   itemId: string,
@@ -322,6 +380,142 @@ function PersistentNoteTextarea({
   }, [storageKey]);
 
   return <textarea ref={textareaRef} {...props} />;
+}
+
+type DateTimeFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+function DateTimeField({
+  label,
+  value,
+  onChange
+}: DateTimeFieldProps): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const [{ date, time }, setDraftDateTime] = useState(() =>
+    splitLocalDateTime(value)
+  );
+
+  useEffect(() => {
+    setDraftDateTime(splitLocalDateTime(value));
+  }, [value]);
+
+  function updateDate(nextDate: string) {
+    const nextTime = nextDate ? time || '09:00' : '';
+
+    setDraftDateTime({ date: nextDate, time: nextTime });
+    onChange(composeLocalDateTime(nextDate, nextTime));
+  }
+
+  function updateTime(nextTime: string) {
+    setDraftDateTime({ date, time: nextTime });
+    onChange(composeLocalDateTime(date, nextTime));
+  }
+
+  function openNativeInputPicker(input: HTMLInputElement | null) {
+    if (!input || input.disabled) {
+      return;
+    }
+
+    input.focus();
+
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+        return;
+      }
+
+      input.click();
+    } catch {
+      input.click();
+    }
+  }
+
+  return (
+    <div className="field">
+      <span>{label}</span>
+      <span
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className="date-time-field"
+        role="presentation"
+        onClick={() => setIsOpen(true)}
+      >
+        <span
+          className={
+            value
+              ? 'date-time-display'
+              : 'date-time-display date-time-display-empty'
+          }
+        >
+          {formatDateTimeFieldValue(value)}
+        </span>
+        {isOpen ? (
+          <span
+            aria-label={`${label} picker`}
+            className="date-time-picker-panel"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="date-time-picker-grid">
+              <span className="date-time-picker-field">
+                <span>Date</span>
+                <span className="date-time-native-control">
+                  <input
+                    aria-label={`${label} date`}
+                    ref={dateInputRef}
+                    type="date"
+                    value={date}
+                    onInput={(event) => updateDate(event.currentTarget.value)}
+                    onChange={(event) => updateDate(event.target.value)}
+                  />
+                  <button
+                    aria-label={`Open ${label} date picker`}
+                    className="date-time-picker-indicator-hitbox"
+                    type="button"
+                    onClick={() => openNativeInputPicker(dateInputRef.current)}
+                  />
+                </span>
+              </span>
+              <span className="date-time-picker-field">
+                <span>Time</span>
+                <input
+                  aria-label={`${label} time`}
+                  disabled={!date}
+                  type="time"
+                  value={time}
+                  onInput={(event) => updateTime(event.currentTarget.value)}
+                  onChange={(event) => updateTime(event.target.value)}
+                />
+              </span>
+            </span>
+            <span className="date-time-picker-actions">
+              <button
+                className="quiet-button"
+                type="button"
+                onClick={() => {
+                  onChange('');
+                  setIsOpen(false);
+                }}
+              >
+                Clear
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setIsOpen(false)}
+              >
+                Done
+              </button>
+            </span>
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
 }
 
 type RemoveIconButtonProps = {
@@ -2174,32 +2368,26 @@ function App({
                         ) : null}
                       </div>
                     </div>
-                    <label className="field">
-                      <span>Start date/time</span>
-                      <input
-                        type="datetime-local"
-                        value={selectedTrip.startAt}
-                        onChange={(event) =>
-                          updateSelectedTrip((trip) => ({
-                            ...trip,
-                            startAt: event.target.value
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>End date/time</span>
-                      <input
-                        type="datetime-local"
-                        value={selectedTrip.endAt}
-                        onChange={(event) =>
-                          updateSelectedTrip((trip) => ({
-                            ...trip,
-                            endAt: event.target.value
-                          }))
-                        }
-                      />
-                    </label>
+                    <DateTimeField
+                      label="Start date/time"
+                      value={selectedTrip.startAt}
+                      onChange={(value) =>
+                        updateSelectedTrip((trip) => ({
+                          ...trip,
+                          startAt: value
+                        }))
+                      }
+                    />
+                    <DateTimeField
+                      label="End date/time"
+                      value={selectedTrip.endAt}
+                      onChange={(value) =>
+                        updateSelectedTrip((trip) => ({
+                          ...trip,
+                          endAt: value
+                        }))
+                      }
+                    />
                   </div>
 
                   <label className="field">

@@ -230,7 +230,7 @@
   }
 
   .form-grid {
-    @apply grid gap-4 md:grid-cols-2;
+    @apply grid min-w-0 gap-4 md:grid-cols-2;
   }
 
   .form-grid.compact {
@@ -238,14 +238,68 @@
   }
 
   .field {
-    @apply grid gap-1.5 text-sm font-semibold text-app-muted;
+    @apply grid min-w-0 gap-1.5 text-sm font-semibold text-app-muted;
   }
 
   .field input,
   .field select,
   .field textarea,
   .select-field {
-    @apply w-full rounded-md border border-app-line-strong bg-app-field px-3 py-2 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
+    @apply min-w-0 max-w-full rounded-md border border-app-line-strong bg-app-field px-3 py-2 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
+    width: 100%;
+  }
+
+  .field input[type='datetime-local']::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .date-time-field {
+    @apply relative flex min-h-12 w-full min-w-0 max-w-full cursor-pointer items-center gap-3 rounded-md border border-app-line-strong bg-app-field px-3 py-2 text-base font-medium text-app-ink transition focus-within:border-app-sage focus-within:ring-4 focus-within:ring-app-focus;
+  }
+
+  .date-time-display {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .date-time-display-empty {
+    @apply text-app-muted;
+  }
+
+  .date-time-picker-panel {
+    @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 grid gap-3 rounded-md border border-app-line-strong bg-app-field p-3 shadow-lg;
+  }
+
+  .date-time-picker-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .date-time-picker-field {
+    @apply grid min-w-0 gap-1.5 text-sm font-semibold text-app-muted;
+  }
+
+  .date-time-picker-field input {
+    @apply min-h-10 cursor-pointer;
+  }
+
+  .date-time-native-control {
+    @apply relative block min-w-0;
+  }
+
+  .date-time-native-control input {
+    @apply pr-3;
+  }
+
+  .date-time-picker-field input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+  }
+
+  .date-time-picker-indicator-hitbox {
+    @apply absolute bottom-0 right-0 top-0 w-11 cursor-pointer rounded-r-md bg-transparent focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus;
+  }
+
+  .date-time-picker-actions {
+    @apply flex items-center justify-end gap-2;
   }
 
   .field textarea {
@@ -261,7 +315,7 @@
   }
 
   .location-picker {
-    @apply relative;
+    @apply relative min-w-0;
   }
 
   .location-picker-menu {

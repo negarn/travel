@@ -379,7 +379,7 @@ function RouteReturnToggle({
         type="button"
         onClick={() => onChange('different')}
       >
-        Different way back
+        Different return
       </button>
     </div>
   );
@@ -1011,6 +1011,11 @@ function App({
     initialState ?? emptyTravelAppState
   );
   const [activeTab, setActiveTab] = useState<ActiveTab>(loadActiveTab);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileItemSwitcherOpen, setIsMobileItemSwitcherOpen] =
+    useState(false);
+  const [highlightedMobileTab, setHighlightedMobileTab] =
+    useState<ActiveTab | null>(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [selectedPackingListId, setSelectedPackingListId] = useState(
     appState.packingLists[0]?.id ?? ''
@@ -1042,6 +1047,24 @@ function App({
 
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isMobileItemSwitcherOpen) {
+      return;
+    }
+
+    function closeMobileItemSwitcher(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsMobileItemSwitcherOpen(false);
+      }
+    }
+
+    window.addEventListener('keydown', closeMobileItemSwitcher);
+
+    return () => {
+      window.removeEventListener('keydown', closeMobileItemSwitcher);
+    };
+  }, [isMobileItemSwitcherOpen]);
 
   useEffect(() => {
     window.addEventListener('dragend', clearPackingItemDrag);
@@ -1179,6 +1202,9 @@ function App({
   const selectedTripIsHistorical = selectedTrip
     ? isHistoricalTrip(selectedTrip, currentTime)
     : false;
+  const activeTabLabel =
+    tabs.find((tab) => tab.id === activeTab)?.label ?? 'Trips';
+  const mobileMenuTabs = tabs.filter((tab) => tab.id !== activeTab);
 
   const selectedLocation =
     appState.locations.find(
@@ -1865,6 +1891,13 @@ function App({
     }));
   }
 
+  function selectTab(tabId: ActiveTab) {
+    setActiveTab(tabId);
+    setIsMobileMenuOpen(false);
+    setIsMobileItemSwitcherOpen(false);
+    setHighlightedMobileTab(null);
+  }
+
   return (
     <main className="min-h-dvh bg-app-bg text-app-ink">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -1876,11 +1909,64 @@ function App({
               }
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
             >
               {tab.label}
             </button>
           ))}
+        </nav>
+        <nav className="mobile-tab-nav" aria-label="Travel planning sections">
+          <button
+            aria-expanded={isMobileMenuOpen}
+            className="mobile-tab-trigger"
+            type="button"
+            onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+          >
+            <span className="hamburger-icon" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span>{activeTabLabel}</span>
+          </button>
+          {isMobileMenuOpen ? (
+            <div className="mobile-tab-menu">
+              {mobileMenuTabs.map((tab) => (
+                <button
+                  className={
+                    highlightedMobileTab === tab.id
+                      ? 'mobile-tab-option mobile-tab-option-highlighted'
+                      : 'mobile-tab-option'
+                  }
+                  key={tab.id}
+                  type="button"
+                  onBlur={() => setHighlightedMobileTab(null)}
+                  onFocus={() => setHighlightedMobileTab(tab.id)}
+                  onClick={() => selectTab(tab.id)}
+                  onMouseEnter={() => setHighlightedMobileTab(tab.id)}
+                  onMouseLeave={() =>
+                    setHighlightedMobileTab((currentTab) =>
+                      currentTab === tab.id ? null : currentTab
+                    )
+                  }
+                  onMouseMove={() => setHighlightedMobileTab(tab.id)}
+                  onMouseOver={() => setHighlightedMobileTab(tab.id)}
+                  onPointerCancel={() => setHighlightedMobileTab(null)}
+                  onPointerDown={() => setHighlightedMobileTab(tab.id)}
+                  onPointerEnter={() => setHighlightedMobileTab(tab.id)}
+                  onPointerLeave={() =>
+                    setHighlightedMobileTab((currentTab) =>
+                      currentTab === tab.id ? null : currentTab
+                    )
+                  }
+                  onPointerMove={() => setHighlightedMobileTab(tab.id)}
+                  onPointerUp={() => setHighlightedMobileTab(null)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </nav>
 
         {isLoading ? (
@@ -1900,7 +1986,27 @@ function App({
                   </button>
                 ) : null}
               </div>
-              <div className="mt-4 grid gap-2">
+              {selectedTrip ? (
+                <button
+                  aria-expanded={isMobileItemSwitcherOpen}
+                  aria-haspopup="dialog"
+                  className="mobile-current-selection"
+                  type="button"
+                  onClick={() => setIsMobileItemSwitcherOpen(true)}
+                >
+                  <span className="mobile-current-selection-content">
+                    <span className="font-semibold">{selectedTrip.name}</span>
+                    <span className="text-sm text-app-muted">
+                      {selectedTrip.location || 'No location yet'}
+                    </span>
+                    <span className="text-sm text-app-muted">
+                      {formatTripDateRange(selectedTrip)}
+                    </span>
+                  </span>
+                  <span className="mobile-selection-chevron" aria-hidden="true" />
+                </button>
+              ) : null}
+              <div className="mobile-collapsible-list">
                 {shownTrips.map((trip) => (
                   <button
                     className={
@@ -1910,12 +2016,13 @@ function App({
                     }
                     key={trip.id}
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       setAppState((current) => ({
                         ...current,
                         selectedTripId: trip.id
-                      }))
-                    }
+                      }));
+                      setIsMobileItemSwitcherOpen(false);
+                    }}
                   >
                     <span className="font-semibold">{trip.name}</span>
                     <span className="text-sm text-app-muted">
@@ -1927,6 +2034,62 @@ function App({
                   </button>
                 ))}
               </div>
+              {isMobileItemSwitcherOpen ? (
+                <div
+                  aria-label={`Choose ${activeTab === 'history' ? 'history item' : 'trip'}`}
+                  aria-modal="true"
+                  className="mobile-picker"
+                  role="dialog"
+                >
+                  <button
+                    aria-label="Close picker"
+                    className="mobile-picker-backdrop"
+                    type="button"
+                    onClick={() => setIsMobileItemSwitcherOpen(false)}
+                  />
+                  <div className="mobile-picker-sheet">
+                    <div className="mobile-picker-header">
+                      <h3>{activeTab === 'history' ? 'Choose history item' : 'Choose trip'}</h3>
+                      <button
+                        aria-label="Close picker"
+                        className="mobile-picker-close"
+                        type="button"
+                        onClick={() => setIsMobileItemSwitcherOpen(false)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="mobile-picker-options">
+                      {shownTrips.map((trip) => (
+                        <button
+                          className={
+                            trip.id === selectedTrip?.id
+                              ? 'list-row list-row-active'
+                              : 'list-row'
+                          }
+                          key={trip.id}
+                          type="button"
+                          onClick={() => {
+                            setAppState((current) => ({
+                              ...current,
+                              selectedTripId: trip.id
+                            }));
+                            setIsMobileItemSwitcherOpen(false);
+                          }}
+                        >
+                          <span className="font-semibold">{trip.name}</span>
+                          <span className="text-sm text-app-muted">
+                            {trip.location || 'No location yet'}
+                          </span>
+                          <span className="text-sm text-app-muted">
+                            {formatTripDateRange(trip)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </aside>
 
             <section className="panel">
@@ -2483,7 +2646,10 @@ function App({
                         </p>
                       ) : null}
                       {tripPackingItems.map((item) => (
-                        <div className="packing-item-row" key={item.key}>
+                        <div
+                          className="packing-item-row trip-packing-item-row"
+                          key={item.key}
+                        >
                           <div className="check-row">
                             <input
                               aria-label={`Pack ${item.label}`}
@@ -2506,11 +2672,13 @@ function App({
                               <span>{item.label}</span>
                             )}
                           </div>
-                          <span className="source-pill">{item.source}</span>
-                          <RemoveIconButton
-                            label={`Remove ${item.label}`}
-                            onClick={() => removeTripPackingItem(item.key)}
-                          />
+                          <div className="trip-packing-item-actions">
+                            <span className="source-pill">{item.source}</span>
+                            <RemoveIconButton
+                              label={`Remove ${item.label}`}
+                              onClick={() => removeTripPackingItem(item.key)}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2537,7 +2705,24 @@ function App({
                   +
                 </button>
               </div>
-              <div className="mt-4 grid gap-2">
+              {selectedLocation ? (
+                <button
+                  aria-expanded={isMobileItemSwitcherOpen}
+                  aria-haspopup="dialog"
+                  className="mobile-current-selection"
+                  type="button"
+                  onClick={() => setIsMobileItemSwitcherOpen(true)}
+                >
+                  <span className="mobile-current-selection-content">
+                    <span className="font-semibold">{selectedLocation.name}</span>
+                    <span className="text-sm text-app-muted">
+                      {selectedLocation.travelLegs.length} route options
+                    </span>
+                  </span>
+                  <span className="mobile-selection-chevron" aria-hidden="true" />
+                </button>
+              ) : null}
+              <div className="mobile-collapsible-list">
                 {sortedLocations.map((location) => (
                   <button
                     className={
@@ -2547,12 +2732,13 @@ function App({
                     }
                     key={location.id}
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       setAppState((current) => ({
                         ...current,
                         selectedLocationId: location.id
-                      }))
-                    }
+                      }));
+                      setIsMobileItemSwitcherOpen(false);
+                    }}
                   >
                     <span className="font-semibold">{location.name}</span>
                     <span className="text-sm text-app-muted">
@@ -2561,6 +2747,59 @@ function App({
                   </button>
                 ))}
               </div>
+              {isMobileItemSwitcherOpen ? (
+                <div
+                  aria-label="Choose location"
+                  aria-modal="true"
+                  className="mobile-picker"
+                  role="dialog"
+                >
+                  <button
+                    aria-label="Close picker"
+                    className="mobile-picker-backdrop"
+                    type="button"
+                    onClick={() => setIsMobileItemSwitcherOpen(false)}
+                  />
+                  <div className="mobile-picker-sheet">
+                    <div className="mobile-picker-header">
+                      <h3>Choose location</h3>
+                      <button
+                        aria-label="Close picker"
+                        className="mobile-picker-close"
+                        type="button"
+                        onClick={() => setIsMobileItemSwitcherOpen(false)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="mobile-picker-options">
+                      {sortedLocations.map((location) => (
+                        <button
+                          className={
+                            location.id === selectedLocation?.id
+                              ? 'list-row list-row-active'
+                              : 'list-row'
+                          }
+                          key={location.id}
+                          type="button"
+                          onClick={() => {
+                            setAppState((current) => ({
+                              ...current,
+                              selectedLocationId: location.id
+                            }));
+                            setIsMobileItemSwitcherOpen(false);
+                          }}
+                        >
+                          <span className="font-semibold">{location.name}</span>
+                          <span className="text-sm text-app-muted">
+                            {location.travelLegs.length} route options
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </aside>
 
             <section className="panel">
@@ -2869,7 +3108,24 @@ function App({
                   +
                 </button>
               </div>
-              <div className="mt-4 grid gap-2">
+              {selectedPackingList ? (
+                <button
+                  aria-expanded={isMobileItemSwitcherOpen}
+                  aria-haspopup="dialog"
+                  className="mobile-current-selection"
+                  type="button"
+                  onClick={() => setIsMobileItemSwitcherOpen(true)}
+                >
+                  <span className="mobile-current-selection-content">
+                    <span className="font-semibold">{selectedPackingList.name}</span>
+                    <span className="text-sm text-app-muted">
+                      {selectedPackingList.items.length} items
+                    </span>
+                  </span>
+                  <span className="mobile-selection-chevron" aria-hidden="true" />
+                </button>
+              ) : null}
+              <div className="mobile-collapsible-list">
                 {appState.packingLists.map((list) => (
                   <button
                     className={
@@ -2879,7 +3135,10 @@ function App({
                     }
                     key={list.id}
                     type="button"
-                    onClick={() => setSelectedPackingListId(list.id)}
+                    onClick={() => {
+                      setSelectedPackingListId(list.id);
+                      setIsMobileItemSwitcherOpen(false);
+                    }}
                   >
                     <span className="font-semibold">{list.name}</span>
                     <span className="text-sm text-app-muted">
@@ -2888,6 +3147,56 @@ function App({
                   </button>
                 ))}
               </div>
+              {isMobileItemSwitcherOpen ? (
+                <div
+                  aria-label="Choose packing list"
+                  aria-modal="true"
+                  className="mobile-picker"
+                  role="dialog"
+                >
+                  <button
+                    aria-label="Close picker"
+                    className="mobile-picker-backdrop"
+                    type="button"
+                    onClick={() => setIsMobileItemSwitcherOpen(false)}
+                  />
+                  <div className="mobile-picker-sheet">
+                    <div className="mobile-picker-header">
+                      <h3>Choose packing list</h3>
+                      <button
+                        aria-label="Close picker"
+                        className="mobile-picker-close"
+                        type="button"
+                        onClick={() => setIsMobileItemSwitcherOpen(false)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="mobile-picker-options">
+                      {appState.packingLists.map((list) => (
+                        <button
+                          className={
+                            list.id === selectedPackingList?.id
+                              ? 'list-row list-row-active'
+                              : 'list-row'
+                          }
+                          key={list.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPackingListId(list.id);
+                            setIsMobileItemSwitcherOpen(false);
+                          }}
+                        >
+                          <span className="font-semibold">{list.name}</span>
+                          <span className="text-sm text-app-muted">
+                            {list.items.length} items
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </aside>
 
             <section className="panel">

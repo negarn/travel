@@ -76,7 +76,7 @@
   }
 
   .tab-bar {
-    @apply grid grid-cols-2 gap-2 rounded-lg border border-app-line bg-app-surface p-1 sm:grid-cols-5;
+    @apply hidden grid-cols-5 gap-2 rounded-lg border border-app-line bg-app-surface p-1 sm:grid;
   }
 
   .tab-button {
@@ -85,6 +85,44 @@
 
   .tab-button-active {
     @apply bg-app-steel text-white shadow-sm enabled:hover:bg-app-steel enabled:hover:text-white;
+  }
+
+  .mobile-tab-nav {
+    @apply relative sm:hidden;
+  }
+
+  .mobile-tab-trigger {
+    @apply flex min-h-12 w-full items-center justify-start gap-3 rounded-lg border border-app-line bg-app-field px-4 py-3 text-left text-base font-semibold text-app-ink shadow-sm transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus;
+  }
+
+  .mobile-tab-trigger[aria-expanded='true'] {
+    @apply rounded-b-md border-app-line-strong;
+  }
+
+  .hamburger-icon {
+    @apply grid size-6 shrink-0 content-center gap-1;
+  }
+
+  .hamburger-icon span {
+    @apply h-0.5 rounded-full bg-app-steel;
+  }
+
+  .mobile-tab-menu {
+    @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 grid gap-1 rounded-lg border border-app-line bg-app-field p-1 shadow-lg;
+  }
+
+  .mobile-tab-option {
+    @apply min-h-11 rounded-md px-3 py-2 text-left text-sm font-semibold text-app-muted transition focus:outline-none;
+  }
+
+  .mobile-tab-option:hover,
+  .mobile-tab-option:focus-visible,
+  .mobile-tab-option:active,
+  .mobile-tab-option-highlighted {
+    color: var(--color-app-ink);
+    background: var(--color-app-steel-soft);
+    box-shadow: none;
+    transform: none;
   }
 
   .primary-button,
@@ -140,6 +178,55 @@
 
   .list-row-active:hover {
     @apply border-app-sage bg-app-sage-soft;
+  }
+
+  .mobile-current-selection {
+    @apply mt-4 grid w-full grid-cols-[1fr_auto] items-center gap-3 rounded-md border border-app-sage bg-app-sage-soft p-3 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus lg:hidden;
+  }
+
+  .mobile-current-selection:hover {
+    @apply bg-app-steel-soft;
+  }
+
+  .mobile-current-selection-content {
+    @apply grid min-w-0 gap-1;
+  }
+
+  .mobile-selection-chevron {
+    @apply size-3 shrink-0 rotate-45 border-r-2 border-t-2 border-app-steel;
+  }
+
+  .mobile-collapsible-list {
+    @apply mt-4 hidden gap-2 lg:grid;
+  }
+
+  .mobile-picker {
+    @apply fixed inset-0 z-40 lg:hidden;
+  }
+
+  .mobile-picker-backdrop {
+    @apply absolute inset-0 h-full w-full;
+    background: rgba(28, 37, 40, 0.28);
+  }
+
+  .mobile-picker-sheet {
+    @apply absolute bottom-0 left-0 right-0 grid max-h-[75dvh] gap-3 overflow-hidden rounded-t-lg border border-app-line bg-app-field p-4 shadow-lg;
+  }
+
+  .mobile-picker-header {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .mobile-picker-header h3 {
+    @apply text-xl font-semibold text-app-ink;
+  }
+
+  .mobile-picker-close {
+    @apply flex size-10 items-center justify-center rounded-md text-2xl font-semibold leading-none text-app-muted transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus hover:bg-app-steel-soft hover:text-app-ink;
+  }
+
+  .mobile-picker-options {
+    @apply grid max-h-[56dvh] gap-2 overflow-auto pb-1;
   }
 
   .form-grid {
@@ -291,6 +378,27 @@
     @apply flex flex-wrap items-center gap-3 rounded-md border border-app-line bg-app-surface-soft p-3;
   }
 
+  .trip-packing-item-row {
+    @apply grid gap-1.5;
+  }
+
+  .trip-packing-item-row .check-row {
+    @apply min-w-0;
+  }
+
+  .trip-packing-item-row .check-row > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .trip-packing-item-actions {
+    @apply flex items-center justify-end gap-3;
+  }
+
+  .trip-packing-item-row .remove-icon-button {
+    @apply shrink-0;
+  }
+
   .packing-item-row-dragging {
     @apply border-app-sage bg-app-sage-soft opacity-70;
   }
@@ -341,7 +449,6 @@
 
   .sync-card {
     @apply grid gap-4 rounded-lg border border-app-line bg-app-surface-soft p-4;
-    grid-template-rows: auto minmax(4.25rem, auto) minmax(5.25rem, auto) auto;
   }
 
   .sync-card-header {

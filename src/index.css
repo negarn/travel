@@ -275,6 +275,7 @@
 
   .date-time-picker-grid {
     @apply grid min-w-0 max-w-full gap-3 sm:grid-cols-2;
+    inline-size: 100%;
   }
 
   .date-time-picker-field {
@@ -288,6 +289,7 @@
 
   .date-time-native-control {
     @apply relative block min-w-0 max-w-full;
+    inline-size: 100%;
   }
 
   .date-time-native-control input {
@@ -298,6 +300,12 @@
   .date-time-picker-field input[type='time']::-webkit-date-and-time-value {
     min-width: 0;
     text-align: left;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    .date-time-picker-grid {
+      padding-inline-end: 0.75rem;
+    }
   }
 
   .date-time-picker-field input::-webkit-calendar-picker-indicator {

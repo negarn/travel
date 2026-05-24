@@ -468,6 +468,7 @@ function DateTimeField({
   onChange
 }: DateTimeFieldProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const fieldRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [{ date, time }, setDraftDateTime] = useState(() =>
     splitLocalDateTime(value)
@@ -476,6 +477,40 @@ function DateTimeField({
   useEffect(() => {
     setDraftDateTime(splitLocalDateTime(value));
   }, [value]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function closeOnOutsidePointerDown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        fieldRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
+      setIsOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      setIsOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointerDown);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
 
   function updateDate(nextDate: string) {
     const nextTime = nextDate ? time || '09:00' : '';
@@ -509,14 +544,14 @@ function DateTimeField({
   }
 
   return (
-    <div className="field">
+    <div className="field" ref={fieldRef}>
       <span>{label}</span>
       <span
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         className="date-time-field"
         role="presentation"
-        onClick={() => setIsOpen(true)}
+        onClick={() => setIsOpen((currentIsOpen) => !currentIsOpen)}
       >
         <span
           className={

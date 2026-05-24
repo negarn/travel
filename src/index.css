@@ -268,26 +268,36 @@
 
   .date-time-picker-panel {
     @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 grid gap-3 rounded-md border border-app-line-strong bg-app-field p-3 shadow-lg;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .date-time-picker-grid {
-    @apply grid gap-3 sm:grid-cols-2;
+    @apply grid min-w-0 max-w-full gap-3 sm:grid-cols-2;
   }
 
   .date-time-picker-field {
-    @apply grid min-w-0 gap-1.5 text-sm font-semibold text-app-muted;
+    @apply grid min-w-0 max-w-full gap-1.5 text-sm font-semibold text-app-muted;
   }
 
   .date-time-picker-field input {
-    @apply min-h-10 cursor-pointer;
+    @apply min-h-10 min-w-0 max-w-full cursor-pointer;
+    inline-size: 100%;
   }
 
   .date-time-native-control {
-    @apply relative block min-w-0;
+    @apply relative block min-w-0 max-w-full;
   }
 
   .date-time-native-control input {
     @apply pr-3;
+  }
+
+  .date-time-picker-field input[type='date']::-webkit-date-and-time-value,
+  .date-time-picker-field input[type='time']::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
   }
 
   .date-time-picker-field input::-webkit-calendar-picker-indicator {

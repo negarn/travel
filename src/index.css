@@ -433,7 +433,7 @@
   }
 
   .trip-packing-item-row {
-    @apply grid gap-1.5;
+    @apply grid gap-1.5 sm:flex sm:flex-nowrap sm:items-center sm:gap-3;
   }
 
   .trip-packing-item-row .check-row {
@@ -446,7 +446,7 @@
   }
 
   .trip-packing-item-actions {
-    @apply flex items-center justify-end gap-3;
+    @apply flex items-center justify-end gap-3 sm:ml-auto sm:shrink-0;
   }
 
   .trip-packing-item-row .remove-icon-button {

@@ -56,6 +56,7 @@ const travelModeOptions: Array<{ value: TravelMode; label: string }> = [
 ];
 const activeTabStorageKey = 'travel-plans-active-tab';
 const noteHeightStoragePrefix = 'travel-plans-note-height:';
+const desktopNoteHeightMediaQuery = '(min-width: 768px)';
 const defaultActiveTab: ActiveTab = 'trips';
 const googleMapsEmbedApiKey =
   import.meta.env.VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY?.trim() ?? '';
@@ -334,11 +335,79 @@ type PersistentNoteTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> &
   storageKey: string;
 };
 
+type NoteHeightViewportSize = 'desktop' | 'phone';
+
+function getNoteHeightViewportSize(): NoteHeightViewportSize {
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(desktopNoteHeightMediaQuery).matches
+  ) {
+    return 'desktop';
+  }
+
+  return 'phone';
+}
+
+function getNoteHeightStorageKey(
+  storageKey: string,
+  viewportSize: NoteHeightViewportSize
+): string {
+  return `${noteHeightStoragePrefix}${viewportSize}:${storageKey}`;
+}
+
+function loadStoredNoteHeight(
+  storageKey: string,
+  viewportSize: NoteHeightViewportSize
+): number {
+  if (typeof window === 'undefined') {
+    return 0;
+  }
+
+  const storedHeight = Number(
+    window.localStorage.getItem(getNoteHeightStorageKey(storageKey, viewportSize))
+  );
+
+  if (Number.isFinite(storedHeight) && storedHeight > 0) {
+    return storedHeight;
+  }
+
+  const legacyStoredHeight = Number(
+    window.localStorage.getItem(`${noteHeightStoragePrefix}${storageKey}`)
+  );
+
+  return viewportSize === 'desktop' &&
+    Number.isFinite(legacyStoredHeight) &&
+    legacyStoredHeight > 0
+    ? legacyStoredHeight
+    : 0;
+}
+
 function PersistentNoteTextarea({
   storageKey,
   ...props
 }: PersistentNoteTextareaProps): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [viewportSize, setViewportSize] = useState(getNoteHeightViewportSize);
+
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return undefined;
+    }
+
+    const desktopMediaQuery = window.matchMedia(desktopNoteHeightMediaQuery);
+    const updateViewportSize = () =>
+      setViewportSize(desktopMediaQuery.matches ? 'desktop' : 'phone');
+
+    updateViewportSize();
+    desktopMediaQuery.addEventListener('change', updateViewportSize);
+
+    return () =>
+      desktopMediaQuery.removeEventListener('change', updateViewportSize);
+  }, []);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -347,17 +416,22 @@ function PersistentNoteTextarea({
       return;
     }
 
-    const storedHeight = Number(
-      window.localStorage.getItem(`${noteHeightStoragePrefix}${storageKey}`)
-    );
+    const storedHeight = loadStoredNoteHeight(storageKey, viewportSize);
 
     if (Number.isFinite(storedHeight) && storedHeight > 0) {
       textarea.style.height = `${storedHeight}px`;
+      return;
     }
-  }, [storageKey]);
+
+    textarea.style.height = '';
+  }, [storageKey, viewportSize]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
+    const noteHeightStorageKey = getNoteHeightStorageKey(
+      storageKey,
+      viewportSize
+    );
 
     if (
       !textarea ||
@@ -369,7 +443,7 @@ function PersistentNoteTextarea({
 
     const observer = new ResizeObserver(() => {
       window.localStorage.setItem(
-        `${noteHeightStoragePrefix}${storageKey}`,
+        noteHeightStorageKey,
         String(textarea.offsetHeight)
       );
     });
@@ -377,7 +451,7 @@ function PersistentNoteTextarea({
     observer.observe(textarea);
 
     return () => observer.disconnect();
-  }, [storageKey]);
+  }, [storageKey, viewportSize]);
 
   return <textarea ref={textareaRef} {...props} />;
 }

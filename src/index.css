@@ -271,22 +271,30 @@
   .date-time-picker-panel {
     @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 grid gap-3 rounded-md border border-app-line-strong bg-app-field p-3 shadow-lg;
     box-sizing: border-box;
+    grid-template-columns: minmax(0, 1fr);
     max-width: 100%;
     overflow: hidden;
   }
 
   .date-time-picker-grid {
-    @apply grid min-w-0 max-w-full gap-3 sm:grid-cols-2;
+    @apply grid min-w-0 max-w-full gap-3;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 1fr);
     inline-size: 100%;
   }
 
   .date-time-picker-field {
     @apply grid min-w-0 max-w-full gap-1.5 text-sm font-semibold text-app-muted;
+    box-sizing: border-box;
+    inline-size: 100%;
   }
 
   .date-time-picker-field input {
     @apply min-h-10 min-w-0 max-w-full cursor-pointer;
+    -webkit-appearance: none;
+    appearance: none;
     box-sizing: border-box;
+    display: block;
     inline-size: 100%;
   }
 
@@ -308,6 +316,18 @@
 
   .date-time-picker-field input::-webkit-calendar-picker-indicator {
     cursor: pointer;
+  }
+
+  @media (min-width: 640px) {
+    .date-time-picker-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 639.98px) {
+    .date-time-picker-grid {
+      padding-inline-end: 0.75rem;
+    }
   }
 
   .date-time-picker-indicator-hitbox {

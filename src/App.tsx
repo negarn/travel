@@ -546,7 +546,7 @@ function DateTimeField({
   return (
     <div className="field" ref={fieldRef}>
       <span>{label}</span>
-      <span
+      <div
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         className="date-time-field"
@@ -563,16 +563,16 @@ function DateTimeField({
           {formatDateTimeFieldValue(value)}
         </span>
         {isOpen ? (
-          <span
+          <div
             aria-label={`${label} picker`}
             className="date-time-picker-panel"
             role="dialog"
             onClick={(event) => event.stopPropagation()}
           >
-            <span className="date-time-picker-grid">
-              <span className="date-time-picker-field">
+            <div className="date-time-picker-grid">
+              <div className="date-time-picker-field">
                 <span>Date</span>
-                <span className="date-time-native-control">
+                <div className="date-time-native-control">
                   <input
                     aria-label={`${label} date`}
                     ref={dateInputRef}
@@ -587,21 +587,23 @@ function DateTimeField({
                     type="button"
                     onClick={() => openNativeInputPicker(dateInputRef.current)}
                   />
-                </span>
-              </span>
-              <span className="date-time-picker-field">
+                </div>
+              </div>
+              <div className="date-time-picker-field">
                 <span>Time</span>
-                <input
-                  aria-label={`${label} time`}
-                  disabled={!date}
-                  type="time"
-                  value={time}
-                  onInput={(event) => updateTime(event.currentTarget.value)}
-                  onChange={(event) => updateTime(event.target.value)}
-                />
-              </span>
-            </span>
-            <span className="date-time-picker-actions">
+                <div className="date-time-native-control">
+                  <input
+                    aria-label={`${label} time`}
+                    disabled={!date}
+                    type="time"
+                    value={time}
+                    onInput={(event) => updateTime(event.currentTarget.value)}
+                    onChange={(event) => updateTime(event.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="date-time-picker-actions">
               <button
                 className="quiet-button"
                 type="button"
@@ -619,10 +621,10 @@ function DateTimeField({
               >
                 Done
               </button>
-            </span>
-          </span>
+            </div>
+          </div>
         ) : null}
-      </span>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent, MouseEvent, TextareaHTMLAttributes } from 'react';
+import type {
+  DragEvent,
+  MouseEvent,
+  PointerEvent as ReactPointerEvent,
+  TextareaHTMLAttributes
+} from 'react';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
 import {
   countPackedItems,
@@ -40,6 +45,10 @@ type LegacyTrip = Omit<
   checklistItems?: Trip['checklistItems'];
   excludedPackingItemKeys?: string[];
   packingSnapshotItems?: Trip['packingSnapshotItems'];
+};
+type PackingItemDragPosition = {
+  itemId: string;
+  midpointY: number;
 };
 
 const tabs: Array<{ id: ActiveTab; label: string }> = [
@@ -1364,6 +1373,11 @@ function App({
   const [dragTargetPackingItemId, setDragTargetPackingItemId] = useState<
     string | null
   >(null);
+  const activeDraggedPackingItemIdRef = useRef<string | null>(null);
+  const activeDragTargetPackingItemIdRef = useRef<string | null>(null);
+  const activeDragListIdRef = useRef<string | null>(null);
+  const activeDragPointerIdRef = useRef<number | null>(null);
+  const activeDragItemPositionsRef = useRef<PackingItemDragPosition[]>([]);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(isServerBacked);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -2009,6 +2023,15 @@ function App({
     setDragTargetPackingItemId(null);
   }
 
+  function clearPointerPackingItemDrag() {
+    activeDraggedPackingItemIdRef.current = null;
+    activeDragTargetPackingItemIdRef.current = null;
+    activeDragListIdRef.current = null;
+    activeDragPointerIdRef.current = null;
+    activeDragItemPositionsRef.current = [];
+    clearPackingItemDrag();
+  }
+
   function movePackingListItem(
     listId: string,
     itemId: string,
@@ -2024,6 +2047,40 @@ function App({
         items: reorderPackingItems(list.items, itemId, targetItemId)
       };
     });
+  }
+
+  function getPackingItemDragPositions(): PackingItemDragPosition[] {
+    return Array.from(
+      document.querySelectorAll<HTMLElement>('[data-packing-item-id]')
+    ).flatMap((element) => {
+      const itemId = element.dataset.packingItemId;
+
+      if (!itemId) {
+        return [];
+      }
+
+      const rect = element.getBoundingClientRect();
+
+      return [{ itemId, midpointY: rect.top + rect.height / 2 }];
+    });
+  }
+
+  function getPackingItemIdForPointerY(clientY: number) {
+    const closestPosition = activeDragItemPositionsRef.current.reduce<{
+      distance: number;
+      itemId: string | null;
+    }>(
+      (closest, position) => {
+        const distance = Math.abs(position.midpointY - clientY);
+
+        return distance < closest.distance
+          ? { distance, itemId: position.itemId }
+          : closest;
+      },
+      { distance: Number.POSITIVE_INFINITY, itemId: null }
+    );
+
+    return closestPosition.itemId;
   }
 
   function handlePackingItemDragStart(
@@ -2082,6 +2139,78 @@ function App({
 
     clearPackingItemDrag();
     movePackingListItem(selectedPackingList.id, itemId, targetItemIdForDrop);
+  }
+
+  function handlePackingItemPointerDown(
+    event: ReactPointerEvent<HTMLSpanElement>,
+    itemId: string
+  ) {
+    if (event.pointerType === 'mouse' || !selectedPackingList) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    activeDraggedPackingItemIdRef.current = itemId;
+    activeDragTargetPackingItemIdRef.current = itemId;
+    activeDragListIdRef.current = selectedPackingList.id;
+    activeDragPointerIdRef.current = event.pointerId;
+    activeDragItemPositionsRef.current = getPackingItemDragPositions();
+    setDraggedPackingItemId(itemId);
+    setDragTargetPackingItemId(itemId);
+  }
+
+  function handlePackingItemPointerCancel(
+    event: ReactPointerEvent<HTMLSpanElement>
+  ) {
+    if (activeDragPointerIdRef.current === event.pointerId) {
+      clearPointerPackingItemDrag();
+    }
+  }
+
+  function handlePackingItemPointerMove(
+    event: ReactPointerEvent<HTMLSpanElement>
+  ) {
+    if (activeDragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const targetItemId = getPackingItemIdForPointerY(event.clientY);
+
+    if (
+      targetItemId &&
+      targetItemId !== activeDragTargetPackingItemIdRef.current
+    ) {
+      activeDragTargetPackingItemIdRef.current = targetItemId;
+      setDragTargetPackingItemId(targetItemId);
+    }
+  }
+
+  function handlePackingItemPointerUp(
+    event: ReactPointerEvent<HTMLSpanElement>
+  ) {
+    if (activeDragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const listId = activeDragListIdRef.current;
+    const itemId = activeDraggedPackingItemIdRef.current;
+    const targetItemId = activeDragTargetPackingItemIdRef.current;
+    clearPointerPackingItemDrag();
+
+    if (listId && itemId && targetItemId) {
+      movePackingListItem(listId, itemId, targetItemId);
+    }
   }
 
   function addChecklistItem() {
@@ -3637,6 +3766,7 @@ function App({
                             ? 'packing-item-row packing-item-row-dragging'
                             : 'packing-item-row'
                         }
+                        data-packing-item-id={item.id}
                         key={item.id}
                         onDragOver={(event) =>
                           handlePackingItemDragOver(event, item.id)
@@ -3653,6 +3783,12 @@ function App({
                           onDragStart={(event) =>
                             handlePackingItemDragStart(event, item.id)
                           }
+                          onPointerCancel={handlePackingItemPointerCancel}
+                          onPointerDown={(event) =>
+                            handlePackingItemPointerDown(event, item.id)
+                          }
+                          onPointerMove={handlePackingItemPointerMove}
+                          onPointerUp={handlePackingItemPointerUp}
                         >
                           <span aria-hidden="true" className="drag-handle-dots">
                             <span />

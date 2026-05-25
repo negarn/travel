@@ -525,7 +525,7 @@
   }
 
   .drag-handle {
-    @apply flex cursor-pointer items-center justify-center text-app-muted transition hover:text-app-ink active:cursor-grabbing;
+    @apply flex size-10 shrink-0 cursor-pointer touch-none select-none items-center justify-center text-app-muted transition hover:text-app-ink active:cursor-grabbing;
   }
 
   .drag-handle-dots {

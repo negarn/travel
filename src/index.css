@@ -148,6 +148,16 @@
     @apply aspect-square w-10 border border-app-line-strong bg-app-steel text-xl leading-none text-white enabled:hover:cursor-pointer enabled:hover:bg-app-sage;
   }
 
+  .map-link-button {
+    @apply shrink-0 hover:cursor-pointer hover:bg-app-sage;
+  }
+
+  .location-pin-icon {
+    @apply size-5 fill-none stroke-current stroke-2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
   .remove-icon-button {
     @apply inline-flex size-10 items-center justify-center rounded-md text-2xl font-semibold leading-none text-app-coral transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus enabled:hover:cursor-pointer enabled:hover:bg-app-coral-soft;
   }
@@ -354,6 +364,14 @@
     @apply relative min-w-0;
   }
 
+  .address-field-row {
+    @apply flex min-w-0 items-start gap-2;
+  }
+
+  .address-field-row .location-picker {
+    @apply flex-1;
+  }
+
   .location-picker-menu {
     @apply absolute left-0 right-0 top-[calc(100%+0.35rem)] z-20 max-h-64 overflow-auto rounded-md border border-app-line-strong bg-app-surface p-1 shadow-lg;
   }
@@ -420,6 +438,11 @@
     @apply cursor-not-allowed;
   }
 
+  .trip-detail-fieldset:disabled .trip-checklist-item-row,
+  .trip-detail-fieldset:disabled .trip-packing-item-row {
+    @apply cursor-not-allowed;
+  }
+
   .route-return-toggle {
     @apply grid grid-cols-2 gap-1 rounded-md border border-app-line-strong bg-app-surface p-1;
   }
@@ -468,8 +491,12 @@
     @apply flex flex-wrap items-center gap-3 rounded-md border border-app-line bg-app-surface-soft p-3;
   }
 
+  .trip-checklist-item-row {
+    @apply cursor-pointer;
+  }
+
   .trip-packing-item-row {
-    @apply grid gap-1.5 sm:flex sm:flex-nowrap sm:items-center sm:gap-3;
+    @apply grid cursor-pointer gap-1.5 sm:flex sm:flex-nowrap sm:items-center sm:gap-3;
   }
 
   .trip-packing-item-row .check-row {
@@ -526,7 +553,7 @@
   }
 
   .packing-item-name-input {
-    @apply min-h-12 min-w-0 flex-1 rounded-md border border-app-line-strong bg-app-field px-3 py-3 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
+    @apply min-h-12 min-w-0 flex-1 cursor-text rounded-md border border-app-line-strong bg-app-field px-3 py-3 text-base font-medium text-app-ink outline-none transition focus-visible:border-app-sage focus-visible:ring-4 focus-visible:ring-app-focus;
   }
 
   .source-pill {

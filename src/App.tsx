@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent, TextareaHTMLAttributes } from 'react';
+import type { DragEvent, MouseEvent, TextareaHTMLAttributes } from 'react';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
 import {
   countPackedItems,
@@ -76,6 +76,20 @@ function loadActiveTab(): ActiveTab {
 
 function createId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function createGoogleMapsSearchUrl(address: string): string {
+  const trimmedAddress = address.trim();
+
+  if (!trimmedAddress) {
+    return 'https://www.google.com/maps';
+  }
+
+  const mapsUrl = new URL('https://www.google.com/maps/search/');
+  mapsUrl.searchParams.set('api', '1');
+  mapsUrl.searchParams.set('query', trimmedAddress);
+
+  return mapsUrl.toString();
 }
 
 function normalizeLocationName(name: string): string {
@@ -648,6 +662,20 @@ function RemoveIconButton({
     >
       <span aria-hidden="true">×</span>
     </button>
+  );
+}
+
+function LocationPinIcon(): JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      className="location-pin-icon"
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 21s7-6.2 7-12A7 7 0 0 0 5 9c0 5.8 7 12 7 12Z" />
+      <circle cx="12" cy="9" r="2.5" />
+    </svg>
   );
 }
 
@@ -2086,6 +2114,26 @@ function App({
     }));
   }
 
+  function handleToggleRowClick(
+    event: MouseEvent<HTMLDivElement>,
+    onToggle: () => void
+  ) {
+    if (selectedTripIsHistorical) {
+      return;
+    }
+
+    const clickTarget = event.target;
+
+    if (
+      clickTarget instanceof HTMLElement &&
+      clickTarget.closest('button, input, textarea, select, a')
+    ) {
+      return;
+    }
+
+    onToggle();
+  }
+
   function removeChecklistItem(itemId: string) {
     updateSelectedTrip((trip) => ({
       ...trip,
@@ -2501,21 +2549,41 @@ function App({
                     />
                   </div>
 
-                  <label className="field">
+                  <div className="field">
                     <span>Stay address</span>
-                    <AddressAutocompleteInput
-                      value={selectedTrip.stayAddress}
-                      homeAddress={appState.settings.homeAddress}
-                      placesAutocompleteEnabled={isServerBacked}
-                      onChange={(value) =>
-                        updateSelectedTrip((trip) => ({
-                          ...trip,
-                          stayAddress: value
-                        }))
-                      }
-                      placeholder="Address or place"
-                    />
-                  </label>
+                    <div className="address-field-row">
+                      <AddressAutocompleteInput
+                        value={selectedTrip.stayAddress}
+                        homeAddress={appState.settings.homeAddress}
+                        placesAutocompleteEnabled={isServerBacked}
+                        onChange={(value) =>
+                          updateSelectedTrip((trip) => ({
+                            ...trip,
+                            stayAddress: value
+                          }))
+                        }
+                        placeholder="Address or place"
+                      />
+                      <a
+                        aria-label={
+                          selectedTrip.stayAddress.trim()
+                            ? `Open ${selectedTrip.stayAddress.trim()} in Google Maps`
+                            : 'Open Google Maps'
+                        }
+                        className="icon-button map-link-button"
+                        href={createGoogleMapsSearchUrl(selectedTrip.stayAddress)}
+                        rel="noreferrer"
+                        target="_blank"
+                        title={
+                          selectedTrip.stayAddress.trim()
+                            ? 'Open address in Google Maps'
+                            : 'Open Google Maps'
+                        }
+                      >
+                        <LocationPinIcon />
+                      </a>
+                    </div>
+                  </div>
 
                   <label className="field">
                     <span>Trip notes</span>
@@ -2820,15 +2888,23 @@ function App({
                         </p>
                       ) : null}
                       {selectedTrip.checklistItems.map((item) => (
-                        <div className="packing-item-row" key={item.id}>
-                          <label className="check-row">
+                        <div
+                          className="packing-item-row trip-checklist-item-row"
+                          key={item.id}
+                          onClick={(event) =>
+                            handleToggleRowClick(event, () =>
+                              toggleChecklistItem(item.id)
+                            )
+                          }
+                        >
+                          <div className="check-row">
                             <input
                               type="checkbox"
                               checked={item.done}
                               onChange={() => toggleChecklistItem(item.id)}
                             />
                             <span>{item.label}</span>
-                          </label>
+                          </div>
                           <RemoveIconButton
                             label={`Remove ${item.label}`}
                             onClick={() => removeChecklistItem(item.id)}
@@ -2948,6 +3024,11 @@ function App({
                         <div
                           className="packing-item-row trip-packing-item-row"
                           key={item.key}
+                          onClick={(event) =>
+                            handleToggleRowClick(event, () =>
+                              togglePackingItem(item.key)
+                            )
+                          }
                         >
                           <div className="check-row">
                             <input

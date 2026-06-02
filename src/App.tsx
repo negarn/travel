@@ -3,6 +3,7 @@ import type {
   DragEvent,
   MouseEvent,
   PointerEvent as ReactPointerEvent,
+  ReactNode,
   TextareaHTMLAttributes
 } from 'react';
 import { CloudSyncPanel } from './components/CloudSyncPanel';
@@ -10,6 +11,7 @@ import {
   countPackedItems,
   deriveTripPackingItems,
   formatDuration,
+  sortChecklistItemsLast,
   sortPackedItemsLast
 } from './helpers/travelPlanning';
 import { isHistoricalTrip } from './helpers/tripStatus';
@@ -19,6 +21,8 @@ import type {
   PackingList,
   PackingListItem,
   TravelAppState,
+  TripChecklistItem,
+  TripPackingSummaryItem,
   TravelLeg,
   TravelLocation,
   TravelMode,
@@ -671,6 +675,45 @@ function RemoveIconButton({
     >
       <span aria-hidden="true">×</span>
     </button>
+  );
+}
+
+type MarkedItemsGroupProps = {
+  children: ReactNode;
+  count: number;
+  isExpanded: boolean;
+  label: string;
+  onToggle: () => void;
+};
+
+function MarkedItemsGroup({
+  children,
+  count,
+  isExpanded,
+  label,
+  onToggle
+}: MarkedItemsGroupProps): JSX.Element {
+  return (
+    <div className="marked-items-group">
+      <button
+        aria-expanded={isExpanded}
+        className="marked-items-toggle"
+        type="button"
+        onClick={onToggle}
+      >
+        <span
+          aria-hidden="true"
+          className={
+            isExpanded
+              ? 'marked-items-toggle-icon marked-items-toggle-icon-expanded'
+              : 'marked-items-toggle-icon'
+          }
+        />
+        <span>{label}</span>
+        <span className="marked-items-count">{count}</span>
+      </button>
+      {isExpanded ? <div className="marked-items-list">{children}</div> : null}
+    </div>
   );
 }
 
@@ -1367,6 +1410,10 @@ function App({
   const [newTripItem, setNewTripItem] = useState('');
   const [packingListQuery, setPackingListQuery] = useState('');
   const [isPackingListPickerOpen, setIsPackingListPickerOpen] = useState(false);
+  const [isChecklistMarkedGroupExpanded, setIsChecklistMarkedGroupExpanded] =
+    useState(false);
+  const [isPackingMarkedGroupExpanded, setIsPackingMarkedGroupExpanded] =
+    useState(false);
   const [draggedPackingItemId, setDraggedPackingItemId] = useState<string | null>(
     null
   );
@@ -1597,6 +1644,23 @@ function App({
       return deriveTripPackingItems(selectedTrip, appState.packingLists);
     },
     [appState.packingLists, selectedTrip, selectedTripIsHistorical]
+  );
+  const tripChecklistItemGroups = useMemo(() => {
+    const items = selectedTrip
+      ? sortChecklistItemsLast(selectedTrip.checklistItems)
+      : [];
+
+    return {
+      openItems: items.filter((item) => !item.done),
+      markedItems: items.filter((item) => item.done)
+    };
+  }, [selectedTrip]);
+  const tripPackingItemGroups = useMemo(
+    () => ({
+      openItems: tripPackingItems.filter((item) => !item.packed),
+      markedItems: tripPackingItems.filter((item) => item.packed)
+    }),
+    [tripPackingItems]
   );
   const packedCount = countPackedItems(tripPackingItems);
   const filteredPackingLists = useMemo(() => {
@@ -2373,6 +2437,75 @@ function App({
     }));
   }
 
+  function renderChecklistItemRow(item: TripChecklistItem): JSX.Element {
+    return (
+      <div
+        className="packing-item-row trip-checklist-item-row"
+        key={item.id}
+        onClick={(event) =>
+          handleToggleRowClick(event, () => toggleChecklistItem(item.id))
+        }
+      >
+        <div className="check-row">
+          <input
+            type="checkbox"
+            checked={item.done}
+            onChange={() => toggleChecklistItem(item.id)}
+          />
+          <span>{item.label}</span>
+        </div>
+        <RemoveIconButton
+          label={`Remove ${item.label}`}
+          onClick={() => removeChecklistItem(item.id)}
+        />
+      </div>
+    );
+  }
+
+  function renderTripPackingItemRow(
+    item: TripPackingSummaryItem
+  ): JSX.Element {
+    return (
+      <div
+        className="packing-item-row trip-packing-item-row"
+        key={item.key}
+        onClick={(event) =>
+          handleToggleRowClick(event, () => togglePackingItem(item.key))
+        }
+      >
+        <div className="check-row">
+          <input
+            aria-label={`Pack ${item.label}`}
+            type="checkbox"
+            checked={item.packed}
+            onChange={() => togglePackingItem(item.key)}
+          />
+          {item.key.startsWith('custom:') ? (
+            <input
+              className="packing-item-name-input"
+              value={item.label}
+              onChange={(event) =>
+                updateCustomTripItemLabel(
+                  item.key.replace('custom:', ''),
+                  event.target.value
+                )
+              }
+            />
+          ) : (
+            <span>{item.label}</span>
+          )}
+        </div>
+        <div className="trip-packing-item-actions">
+          <span className="source-pill">{item.source}</span>
+          <RemoveIconButton
+            label={`Remove ${item.label}`}
+            onClick={() => removeTripPackingItem(item.key)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   function selectTab(tabId: ActiveTab) {
     setActiveTab(tabId);
     setIsMobileMenuOpen(false);
@@ -3016,30 +3149,25 @@ function App({
                           Add trip tasks and mark them done as you go.
                         </p>
                       ) : null}
-                      {selectedTrip.checklistItems.map((item) => (
-                        <div
-                          className="packing-item-row trip-checklist-item-row"
-                          key={item.id}
-                          onClick={(event) =>
-                            handleToggleRowClick(event, () =>
-                              toggleChecklistItem(item.id)
+                      {tripChecklistItemGroups.openItems.map(
+                        renderChecklistItemRow
+                      )}
+                      {tripChecklistItemGroups.markedItems.length > 0 ? (
+                        <MarkedItemsGroup
+                          count={tripChecklistItemGroups.markedItems.length}
+                          isExpanded={isChecklistMarkedGroupExpanded}
+                          label="Completed"
+                          onToggle={() =>
+                            setIsChecklistMarkedGroupExpanded(
+                              (currentValue) => !currentValue
                             )
                           }
                         >
-                          <div className="check-row">
-                            <input
-                              type="checkbox"
-                              checked={item.done}
-                              onChange={() => toggleChecklistItem(item.id)}
-                            />
-                            <span>{item.label}</span>
-                          </div>
-                          <RemoveIconButton
-                            label={`Remove ${item.label}`}
-                            onClick={() => removeChecklistItem(item.id)}
-                          />
-                        </div>
-                      ))}
+                          {tripChecklistItemGroups.markedItems.map(
+                            renderChecklistItemRow
+                          )}
+                        </MarkedItemsGroup>
+                      ) : null}
                     </div>
                   </div>
 
@@ -3149,47 +3277,25 @@ function App({
                           Attach a packing list or add trip-specific items.
                         </p>
                       ) : null}
-                      {tripPackingItems.map((item) => (
-                        <div
-                          className="packing-item-row trip-packing-item-row"
-                          key={item.key}
-                          onClick={(event) =>
-                            handleToggleRowClick(event, () =>
-                              togglePackingItem(item.key)
+                      {tripPackingItemGroups.openItems.map(
+                        renderTripPackingItemRow
+                      )}
+                      {tripPackingItemGroups.markedItems.length > 0 ? (
+                        <MarkedItemsGroup
+                          count={tripPackingItemGroups.markedItems.length}
+                          isExpanded={isPackingMarkedGroupExpanded}
+                          label="Packed"
+                          onToggle={() =>
+                            setIsPackingMarkedGroupExpanded(
+                              (currentValue) => !currentValue
                             )
                           }
                         >
-                          <div className="check-row">
-                            <input
-                              aria-label={`Pack ${item.label}`}
-                              type="checkbox"
-                              checked={item.packed}
-                              onChange={() => togglePackingItem(item.key)}
-                            />
-                            {item.key.startsWith('custom:') ? (
-                              <input
-                                className="packing-item-name-input"
-                                value={item.label}
-                                onChange={(event) =>
-                                  updateCustomTripItemLabel(
-                                    item.key.replace('custom:', ''),
-                                    event.target.value
-                                  )
-                                }
-                              />
-                            ) : (
-                              <span>{item.label}</span>
-                            )}
-                          </div>
-                          <div className="trip-packing-item-actions">
-                            <span className="source-pill">{item.source}</span>
-                            <RemoveIconButton
-                              label={`Remove ${item.label}`}
-                              onClick={() => removeTripPackingItem(item.key)}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                          {tripPackingItemGroups.markedItems.map(
+                            renderTripPackingItemRow
+                          )}
+                        </MarkedItemsGroup>
+                      ) : null}
                     </div>
                   </div>
                   </fieldset>

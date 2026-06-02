@@ -3,6 +3,7 @@ import {
   countPackedItems,
   deriveTripPackingItems,
   formatDuration,
+  sortChecklistItemsLast,
   sortPackedItemsLast
 } from './travelPlanning';
 import type { PackingList, Trip } from '../types/travel';
@@ -122,6 +123,22 @@ describe('deriveTripPackingItems', () => {
       { key: 'open-2', label: 'Open 2', source: 'Trip', packed: false },
       { key: 'packed-1', label: 'Packed 1', source: 'Trip', packed: true },
       { key: 'packed-2', label: 'Packed 2', source: 'Trip', packed: true }
+    ]);
+  });
+
+  it('moves completed checklist items to the bottom while preserving group order', () => {
+    expect(
+      sortChecklistItemsLast([
+        { id: 'done-1', label: 'Done 1', done: true },
+        { id: 'open-1', label: 'Open 1', done: false },
+        { id: 'done-2', label: 'Done 2', done: true },
+        { id: 'open-2', label: 'Open 2', done: false }
+      ])
+    ).toEqual([
+      { id: 'open-1', label: 'Open 1', done: false },
+      { id: 'open-2', label: 'Open 2', done: false },
+      { id: 'done-1', label: 'Done 1', done: true },
+      { id: 'done-2', label: 'Done 2', done: true }
     ]);
   });
 });

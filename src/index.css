@@ -439,7 +439,8 @@
   }
 
   .trip-detail-fieldset:disabled .trip-checklist-item-row,
-  .trip-detail-fieldset:disabled .trip-packing-item-row {
+  .trip-detail-fieldset:disabled .trip-packing-item-row,
+  .trip-detail-fieldset:disabled .marked-items-toggle {
     @apply cursor-not-allowed;
   }
 
@@ -485,6 +486,35 @@
 
   .item-list {
     @apply grid gap-2;
+  }
+
+  .marked-items-group {
+    @apply grid gap-2;
+  }
+
+  .marked-items-toggle {
+    @apply flex min-h-11 w-full items-center gap-3 rounded-md border border-app-line bg-app-steel-soft px-3 py-2 text-left text-sm font-bold text-app-steel transition focus:outline-none focus-visible:ring-4 focus-visible:ring-app-focus enabled:hover:bg-app-sage-soft;
+  }
+
+  .marked-items-toggle-icon {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 150ms ease;
+  }
+
+  .marked-items-toggle-icon-expanded {
+    transform: rotate(45deg);
+  }
+
+  .marked-items-count {
+    @apply ml-auto rounded-full bg-app-field px-2.5 py-1 text-xs font-bold text-app-muted;
+  }
+
+  .marked-items-list {
+    @apply grid gap-2 border-l-2 border-app-line pl-3;
   }
 
   .packing-item-row {

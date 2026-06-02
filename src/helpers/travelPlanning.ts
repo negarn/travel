@@ -1,4 +1,9 @@
-import type { PackingList, Trip, TripPackingSummaryItem } from '../types/travel';
+import type {
+  PackingList,
+  Trip,
+  TripChecklistItem,
+  TripPackingSummaryItem
+} from '../types/travel';
 
 function getPackingListItemKey(listId: string, itemId: string): string {
   return `list:${listId}:${itemId}`;
@@ -68,11 +73,27 @@ export function countPackedItems(items: TripPackingSummaryItem[]): number {
 export function sortPackedItemsLast(
   items: TripPackingSummaryItem[]
 ): TripPackingSummaryItem[] {
+  return sortCheckedItemsLast(items, (item) => item.packed);
+}
+
+export function sortChecklistItemsLast(
+  items: TripChecklistItem[]
+): TripChecklistItem[] {
+  return sortCheckedItemsLast(items, (item) => item.done);
+}
+
+function sortCheckedItemsLast<T>(
+  items: T[],
+  isChecked: (item: T) => boolean
+): T[] {
   return [...items].sort((firstItem, secondItem) => {
-    if (firstItem.packed === secondItem.packed) {
+    const firstItemChecked = isChecked(firstItem);
+    const secondItemChecked = isChecked(secondItem);
+
+    if (firstItemChecked === secondItemChecked) {
       return 0;
     }
 
-    return firstItem.packed ? 1 : -1;
+    return firstItemChecked ? 1 : -1;
   });
 }

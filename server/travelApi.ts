@@ -12,6 +12,7 @@ import {
   getConfiguredPublicOriginHostName,
   getRequestOriginHeader
 } from './publicOrigin';
+import { handleAppAuthRequest } from './appAuth';
 import {
   ensurePrivateJsonStorageFile,
   writePrivateJsonFile
@@ -599,9 +600,17 @@ export async function initializeTravelApi() {
 
 export async function handleTravelApiRequest(
   request: IncomingMessage,
-  response: ServerResponse
+  response: ServerResponse,
+  next: NextFunction = () => {
+    response.statusCode = 401;
+    response.end();
+  }
 ) {
   const requestPath = getRequestPath(request);
+
+  if (await handleAppAuthRequest(request, response, next)) {
+    return true;
+  }
 
   if (!requestPath.startsWith('/api/')) {
     return false;
@@ -647,7 +656,7 @@ export function travelApi(): Plugin {
 
       (server.middlewares as MiddlewareStack).use((request, response, next) => {
         void (async () => {
-          if (!(await handleTravelApiRequest(request, response))) {
+          if (!(await handleTravelApiRequest(request, response, next))) {
             next();
           }
         })().catch((error) => {

@@ -81,6 +81,47 @@ TRAVEL_DATA_DIR=/path/to/travel-data npm run dev
 
 Cloud sync connection state is stored in the same data directory. Local API
 requests are only accepted from localhost unless `TRAVEL_PUBLIC_ORIGIN` is set.
+If you serve the app from an external origin, set `TRAVEL_PUBLIC_ORIGIN` to that
+exact origin so auth, cloud sync callbacks, and browser requests line up.
+
+## Google app sign-in
+
+Set `TRAVEL_AUTH_ALLOWED_EMAIL` to require Google sign-in before the app opens.
+Only that exact Google email address may sign in.
+
+Create a Google OAuth web client, then set:
+
+```sh
+TRAVEL_AUTH_ALLOWED_EMAIL=you@example.com
+TRAVEL_AUTH_GOOGLE_CLIENT_ID=...
+TRAVEL_AUTH_GOOGLE_CLIENT_SECRET=...
+TRAVEL_AUTH_SESSION_SECRET=...
+```
+
+Add this authorized redirect URI to the Google OAuth client:
+
+```text
+https://travel.example.com/auth/google/callback
+```
+
+Use your real `TRAVEL_PUBLIC_ORIGIN` in place of `https://travel.example.com`.
+For local testing, use `http://127.0.0.1:5175/auth/google/callback`.
+
+The app session is stored in a signed, HTTP-only cookie so mobile browsers stay
+signed in across normal app focus changes. The auth client ID/secret can be the
+same OAuth web client used for Google Drive cloud sync, as long as both redirect
+URLs are configured.
+
+## Offline use
+
+Production builds register a service worker and include a web app manifest.
+After you have opened the app online once, the browser caches the app shell plus
+successful API reads. The app also stores the last successful travel-data
+snapshot in browser storage, so the plan can still render when requests fail
+offline.
+
+Offline changes are intentionally conservative: read-only access is cached,
+while writes still need the server to save and sync reliably.
 
 ## Cloud sync
 

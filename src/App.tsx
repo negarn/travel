@@ -17,6 +17,10 @@ import {
 import { isHistoricalTrip } from './helpers/tripStatus';
 import { emptyTravelAppState } from './helpers/travelData';
 import { travelApiPaths } from './helpers/travelApiRoutes';
+import {
+  readJsonStorageValue,
+  writeJsonStorageValue
+} from './helpers/jsonStorage';
 import type {
   PackingList,
   PackingListItem,
@@ -69,6 +73,7 @@ const travelModeOptions: Array<{ value: TravelMode; label: string }> = [
 ];
 const activeTabStorageKey = 'travel-plans-active-tab';
 const noteHeightStoragePrefix = 'travel-plans-note-height:';
+const travelAppStateCacheStorageKey = 'travel-plans:last-good-app-state';
 const desktopNoteHeightMediaQuery = '(min-width: 768px)';
 const defaultActiveTab: ActiveTab = 'trips';
 const googleMapsEmbedApiKey =
@@ -1386,6 +1391,18 @@ function normalizeStoredState(
   };
 }
 
+function readCachedTravelAppState() {
+  const cachedState = readJsonStorageValue(travelAppStateCacheStorageKey);
+
+  return cachedState
+    ? normalizeStoredState(cachedState as Partial<TravelAppState>, emptyTravelAppState)
+    : null;
+}
+
+function writeCachedTravelAppState(state: TravelAppState) {
+  writeJsonStorageValue(travelAppStateCacheStorageKey, state);
+}
+
 function App({
   initialState
 }: {
@@ -1491,18 +1508,31 @@ function App({
           return;
         }
 
-        setAppState(normalizeStoredState(parsedResponse.travelData ?? {}, emptyTravelAppState));
+        const travelData = normalizeStoredState(
+          parsedResponse.travelData ?? {},
+          emptyTravelAppState
+        );
+
+        setAppState(travelData);
+        writeCachedTravelAppState(travelData);
         setLoadError(null);
+        setHasLoadedServerData(true);
       } catch (error) {
         console.error(error);
 
         if (isCurrent) {
-          setLoadError('Could not load travel data from disk.');
+          const cachedTravelData = readCachedTravelAppState();
+
+          if (cachedTravelData) {
+            setAppState(cachedTravelData);
+            setLoadError('Showing the last loaded travel data.');
+          } else {
+            setLoadError('Could not load travel data from disk.');
+          }
         }
       } finally {
         if (isCurrent) {
           setIsLoading(false);
-          setHasLoadedServerData(true);
         }
       }
     }
@@ -1535,12 +1565,21 @@ function App({
         },
         method: 'PUT',
         signal: controller.signal
-      }).catch((error) => {
-        if (!controller.signal.aborted) {
-          console.error(error);
-          setLoadError('Could not save travel data to disk.');
-        }
-      });
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error('Could not save travel data.');
+          }
+
+          writeCachedTravelAppState(appState);
+          setLoadError(null);
+        })
+        .catch((error) => {
+          if (!controller.signal.aborted) {
+            console.error(error);
+            setLoadError('Could not save travel data to disk.');
+          }
+        });
     }, 250);
 
     return () => {

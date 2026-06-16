@@ -1,0 +1,18 @@
+{
+  "name": "Travel Plans",
+  "short_name": "Travel",
+  "description": "Private travel plans, locations, checklists, and packing lists.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f2e8",
+  "theme_color": "#24353f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -154,9 +154,11 @@ TRAVEL_GOOGLE_MAPS_API_KEY=...
 VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY=...
 ```
 
-Restart the dev server after changing either key. Because address autocomplete
-and route calculations call Google from the local Vite API server, use a
-server-side key that is allowed to call Places API (New) and Routes API.
+Restart the dev server after changing either key. In production, the embed key
+can be supplied when the server starts; rebuilding the browser bundle is not
+required. Because address autocomplete and route calculations call Google from
+the local Vite API server, use a server-side key that is allowed to call Places
+API (New) and Routes API.
 
 Embedded route maps use a separate browser key that is allowed to call the Maps
 Embed API and is restricted to your local app origin, such as

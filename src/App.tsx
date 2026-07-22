@@ -76,7 +76,7 @@ const noteHeightStoragePrefix = 'travel-plans-note-height:';
 const travelAppStateCacheStorageKey = 'travel-plans:last-good-app-state';
 const desktopNoteHeightMediaQuery = '(min-width: 768px)';
 const defaultActiveTab: ActiveTab = 'trips';
-const googleMapsEmbedApiKey =
+const buildTimeGoogleMapsEmbedApiKey =
   import.meta.env.VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY?.trim() ?? '';
 
 function isActiveTab(value: string | null): value is ActiveTab {
@@ -883,10 +883,12 @@ type AddressAutocompleteSuggestion = {
 type RouteMapResult = {
   distanceMeters: number | null;
   durationMinutes: number | null;
+  embedApiKey: string | null;
   mapsUrl: string;
   travelMode: string;
 };
 type RouteMapEmbedProps = {
+  apiKey: string;
   destination: string;
   origin: string;
   travelMode: string;
@@ -1071,13 +1073,14 @@ function AddressAutocompleteInput({
 }
 
 function createGoogleMapsEmbedDirectionsUrl({
+  apiKey,
   destination,
   origin,
   travelMode
 }: RouteMapEmbedProps): string {
   const embedUrl = new URL('https://www.google.com/maps/embed/v1/directions');
 
-  embedUrl.searchParams.set('key', googleMapsEmbedApiKey);
+  embedUrl.searchParams.set('key', apiKey);
   embedUrl.searchParams.set('origin', origin);
   embedUrl.searchParams.set('destination', destination);
   embedUrl.searchParams.set('units', 'metric');
@@ -1092,11 +1095,13 @@ function createGoogleMapsEmbedDirectionsUrl({
 }
 
 function RouteMapEmbed({
+  apiKey,
   destination,
   origin,
   travelMode
 }: RouteMapEmbedProps): JSX.Element {
   const embedUrl = createGoogleMapsEmbedDirectionsUrl({
+    apiKey,
     destination,
     origin,
     travelMode
@@ -1237,10 +1242,14 @@ function RouteMapPreview({
     return <p className="route-preview-status">Calculating route...</p>;
   }
 
+  const googleMapsEmbedApiKey =
+    route.embedApiKey || buildTimeGoogleMapsEmbedApiKey;
+
   return (
     <div className="route-preview">
       {googleMapsEmbedApiKey ? (
         <RouteMapEmbed
+          apiKey={googleMapsEmbedApiKey}
           destination={trimmedDestination}
           origin={trimmedOrigin}
           travelMode={route.travelMode}

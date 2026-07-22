@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { travelApiPaths } from '../src/helpers/travelApiRoutes';
 import { handleTravelApiRequest } from './travelApi';
 
@@ -9,20 +9,27 @@ afterEach(() => {
   delete process.env.TRAVEL_AUTH_GOOGLE_CLIENT_ID;
   delete process.env.TRAVEL_AUTH_GOOGLE_CLIENT_SECRET;
   delete process.env.TRAVEL_AUTH_SESSION_SECRET;
+  delete process.env.TRAVEL_GOOGLE_MAPS_API_KEY;
+  delete process.env.VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY;
+  vi.restoreAllMocks();
 });
 
 async function executeRequest({
   host = '127.0.0.1:5175',
+  body,
   method,
   remoteAddress = '127.0.0.1',
   url
 }: {
   host?: string;
+  body?: unknown;
   method: string;
   remoteAddress?: string;
   url: string;
 }) {
-  const request = Readable.from([]) as IncomingMessage;
+  const request = Readable.from(
+    body === undefined ? [] : [JSON.stringify(body)]
+  ) as IncomingMessage;
   const responseState = {
     body: '',
     headers: new Map<string, string>(),
@@ -88,5 +95,34 @@ describe('travelApi', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.body.error).toBe('Sign in with Google to use this app.');
+  });
+
+  it('returns the runtime Maps Embed key with a calculated route', async () => {
+    process.env.TRAVEL_GOOGLE_MAPS_API_KEY = 'server-maps-key';
+    process.env.VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY = 'runtime-embed-key';
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          routes: [{ distanceMeters: 1000, duration: '600s' }]
+        }),
+        { status: 200 }
+      )
+    );
+
+    const response = await executeRequest({
+      body: {
+        destination: 'Toronto',
+        mode: 'DRIVE',
+        origin: 'Ottawa'
+      },
+      method: 'POST',
+      url: travelApiPaths.mapsRoute
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.route).toMatchObject({
+      durationMinutes: 10,
+      embedApiKey: 'runtime-embed-key'
+    });
   });
 });

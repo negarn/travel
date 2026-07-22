@@ -55,6 +55,10 @@ function getGoogleMapsApiKey() {
   return process.env.TRAVEL_GOOGLE_MAPS_API_KEY ?? null;
 }
 
+function getGoogleMapsEmbedApiKey() {
+  return process.env.VITE_TRAVEL_GOOGLE_MAPS_EMBED_API_KEY?.trim() || null;
+}
+
 function getRequestHostName(request: IncomingMessage) {
   const hostHeader = request.headers.host?.trim();
 
@@ -570,6 +574,7 @@ async function handleMapsRouteRoute(
           durationSeconds === null
             ? null
             : Math.max(1, Math.round(durationSeconds / 60)),
+        embedApiKey: getGoogleMapsEmbedApiKey(),
         mapsUrl: createGoogleMapsDirectionsUrl({
           destination,
           origin,

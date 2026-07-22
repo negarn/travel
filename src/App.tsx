@@ -489,12 +489,14 @@ function PersistentNoteTextarea({
 }
 
 type DateTimeFieldProps = {
+  disabled?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
 };
 
 function DateTimeField({
+  disabled = false,
   label,
   value,
   onChange
@@ -509,6 +511,12 @@ function DateTimeField({
   useEffect(() => {
     setDraftDateTime(splitLocalDateTime(value));
   }, [value]);
+
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+    }
+  }, [disabled]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -544,11 +552,21 @@ function DateTimeField({
     };
   }, [isOpen]);
 
+  function updateDraftDate(nextDate: string) {
+    const nextTime = nextDate ? time || '09:00' : '';
+
+    setDraftDateTime({ date: nextDate, time: nextTime });
+  }
+
   function updateDate(nextDate: string) {
     const nextTime = nextDate ? time || '09:00' : '';
 
     setDraftDateTime({ date: nextDate, time: nextTime });
     onChange(composeLocalDateTime(nextDate, nextTime));
+  }
+
+  function updateDraftTime(nextTime: string) {
+    setDraftDateTime({ date, time: nextTime });
   }
 
   function updateTime(nextTime: string) {
@@ -579,11 +597,18 @@ function DateTimeField({
     <div className="field" ref={fieldRef}>
       <span>{label}</span>
       <div
-        aria-expanded={isOpen}
+        aria-disabled={disabled}
+        aria-expanded={isOpen && !disabled}
         aria-haspopup="dialog"
-        className="date-time-field"
+        className={
+          disabled ? 'date-time-field date-time-field-disabled' : 'date-time-field'
+        }
         role="presentation"
-        onClick={() => setIsOpen((currentIsOpen) => !currentIsOpen)}
+        onClick={() => {
+          if (!disabled) {
+            setIsOpen((currentIsOpen) => !currentIsOpen);
+          }
+        }}
       >
         <span
           className={
@@ -594,7 +619,7 @@ function DateTimeField({
         >
           {formatDateTimeFieldValue(value)}
         </span>
-        {isOpen ? (
+        {isOpen && !disabled ? (
           <div
             aria-label={`${label} picker`}
             className="date-time-picker-panel"
@@ -610,7 +635,9 @@ function DateTimeField({
                     ref={dateInputRef}
                     type="date"
                     value={date}
-                    onInput={(event) => updateDate(event.currentTarget.value)}
+                    onInput={(event) =>
+                      updateDraftDate(event.currentTarget.value)
+                    }
                     onChange={(event) => updateDate(event.target.value)}
                   />
                   <button
@@ -629,7 +656,9 @@ function DateTimeField({
                     disabled={!date}
                     type="time"
                     value={time}
-                    onInput={(event) => updateTime(event.currentTarget.value)}
+                    onInput={(event) =>
+                      updateDraftTime(event.currentTarget.value)
+                    }
                     onChange={(event) => updateTime(event.target.value)}
                   />
                 </div>
@@ -649,7 +678,10 @@ function DateTimeField({
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  onChange(composeLocalDateTime(date, time));
+                  setIsOpen(false);
+                }}
               >
                 Done
               </button>
@@ -2754,10 +2786,6 @@ function App({
                       Historical trips are read-only.
                     </p>
                   ) : null}
-                  <fieldset
-                    className="trip-detail-fieldset"
-                    disabled={selectedTripIsHistorical}
-                  >
                   <div className="section-heading">
                     <h2>Trip details</h2>
                     <button
@@ -2769,6 +2797,10 @@ function App({
                     </button>
                   </div>
 
+                  <fieldset
+                    className="trip-detail-fieldset"
+                    disabled={selectedTripIsHistorical}
+                  >
                   <div className="form-grid">
                     <label className="field">
                       <span>Trip name</span>
@@ -2829,6 +2861,7 @@ function App({
                       </div>
                     </div>
                     <DateTimeField
+                      disabled={selectedTripIsHistorical}
                       label="Start date/time"
                       value={selectedTrip.startAt}
                       onChange={(value) =>
@@ -2839,6 +2872,7 @@ function App({
                       }
                     />
                     <DateTimeField
+                      disabled={selectedTripIsHistorical}
                       label="End date/time"
                       value={selectedTrip.endAt}
                       onChange={(value) =>
@@ -3165,6 +3199,7 @@ function App({
                       onSubmit={(event) => {
                         event.preventDefault();
                         addChecklistItem();
+                        event.currentTarget.querySelector('input')?.focus();
                       }}
                     >
                       <label className="field grow">
@@ -3295,6 +3330,7 @@ function App({
                       onSubmit={(event) => {
                         event.preventDefault();
                         addCustomTripItem();
+                        event.currentTarget.querySelector('input')?.focus();
                       }}
                     >
                       <label className="field grow">
@@ -3885,6 +3921,7 @@ function App({
                     onSubmit={(event) => {
                       event.preventDefault();
                       addItemToPackingList();
+                      event.currentTarget.querySelector('input')?.focus();
                     }}
                   >
                     <label className="field grow">

@@ -8,5 +8,6 @@ dist
 dist-server
 docs
 node_modules
+storybook-static
 test-results
 .travel-demo

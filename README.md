@@ -201,7 +201,7 @@ npm run build
 Build and run the production server:
 
 ```sh
-docker build -t travel-plans .
+docker buildx build --pull --no-cache-filter os --load -t travel-plans .
 docker run --rm -p 4173:4173 travel-plans
 ```
 
@@ -211,3 +211,12 @@ that data between runs:
 ```sh
 docker run --rm -p 4173:4173 -v travel-data:/data/travel travel-plans
 ```
+
+To publish a security rebuild, run **Build and push Docker image** on `main`
+in GitHub Actions. Pushes to `main` also trigger it. Each build pulls the
+current Node 24 Debian 13 base and refreshes installed Debian packages.
+After the workflow succeeds, pull the new image on the server and recreate
+the container with its existing environment and data volume.
+
+Containers share the host's Linux kernel. For a kernel advisory, verify that
+the host is running the vendor's patched kernel before restoring service.
